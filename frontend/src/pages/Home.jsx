@@ -40,13 +40,6 @@ const Home = () => {
                   </Paper>
               </Grid>
             )}
-
-            {/* Outros cards... */}
-            <Grid item xs={12} md={4}>
-                <Paper sx={{ p: 4, textAlign: 'center', opacity: 0.7 }}>
-                    <Typography variant="h6" color="textSecondary">Em breve: Alunos</Typography>
-                </Paper>
-            </Grid>
         </Grid>
 
       </Container>

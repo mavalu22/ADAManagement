@@ -23,28 +23,21 @@ func GetUsersHandler(c *gin.Context) {
 // Atualizar Usuário (Perfil ou Promoção)
 func UpdateUserHandler(c *gin.Context) {
 	id := c.Param("id")
-
-	// Quem está fazendo a requisição?
 	requesterRole := c.GetString("role")
 	requesterID := c.GetUint("userID")
 
-	// Quem será alterado?
 	var user models.User
 	if err := database.DB.First(&user, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
 		return
 	}
 
-	// Permissão: Só pode editar se for Admin ou se for o próprio usuário
-	// Nota: Convertemos id (string) para uint na comparação real, mas aqui simplificamos pela lógica
-	// Se não for admin e tentar editar outro ID -> Proibido.
-	// (Implementação simplificada: Admin pode tudo, User só pode ele mesmo)
+	// Permissão básica
 	if requesterRole != "admin" && uint(user.ID) != requesterID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Sem permissão"})
 		return
 	}
 
-	// Dados de entrada
 	var input struct {
 		Name     string `json:"name"`
 		Email    string `json:"email"`
@@ -56,7 +49,6 @@ func UpdateUserHandler(c *gin.Context) {
 		return
 	}
 
-	// Atualizações
 	if input.Name != "" {
 		user.Name = input.Name
 	}
@@ -64,18 +56,20 @@ func UpdateUserHandler(c *gin.Context) {
 		user.Email = input.Email
 	}
 
-	// Senha (Hash se for alterada)
 	if input.Password != "" {
 		hash, _ := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 		user.Password = string(hash)
 	}
 
-	// Role (Só Admin pode alterar Role)
+	// Regra de Role
 	if input.Role != "" {
 		if requesterRole == "admin" {
+			// === PROTEÇÃO DO MASTER ADMIN (ID 1) ===
+			if user.ID == 1 && input.Role != "admin" {
+				c.JSON(http.StatusForbidden, gin.H{"error": "O Admin Principal não pode ser rebaixado."})
+				return
+			}
 			user.Role = input.Role
-		} else {
-			// Se usuário comum tentar mudar role, ignoramos ou damos erro. Vamos ignorar silenciosamente.
 		}
 	}
 
@@ -83,15 +77,19 @@ func UpdateUserHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Usuário atualizado", "user": user})
 }
 
-// Deletar Usuário (Apenas Admin)
 func DeleteUserHandler(c *gin.Context) {
 	id := c.Param("id")
-
-	// Impede que o usuário delete a si mesmo (para evitar ficar sem admin)
 	requesterID := c.GetUint("userID")
+
 	var user models.User
 	if err := database.DB.First(&user, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
+		return
+	}
+
+	// === PROTEÇÃO DO MASTER ADMIN (ID 1) ===
+	if user.ID == 1 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "O Admin Principal não pode ser excluído."})
 		return
 	}
 

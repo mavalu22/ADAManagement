@@ -116,7 +116,7 @@ const Header = () => {
         >
           <MenuItem onClick={() => handleNavigate('/home')}>
              <ListItemIcon><DashboardIcon fontSize="small" /></ListItemIcon>
-             Dashboard
+             Home
           </MenuItem>
 
           <MenuItem onClick={() => handleNavigate('/profile')}>

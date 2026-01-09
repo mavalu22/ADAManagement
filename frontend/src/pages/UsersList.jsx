@@ -44,17 +44,21 @@ const UsersList = () => {
       toast.success(`Usuário agora é ${newRole === 'admin' ? 'Admin' : 'Comum'}`);
       fetchUsers();
     } catch (error) {
-      toast.error("Erro ao alterar permissão.");
+      toast.error(error.response?.data?.error || "Erro ao alterar permissão.");
     }
   };
 
-  // Função auxiliar para verificar se o usuário da linha é o mesmo que está logado
   const isOwnProfile = (targetUserId) => {
     if (!currentUser) return false;
-    // O backend no login retorna 'id', mas o GORM na lista retorna 'ID'.
-    // Verificamos ambos para garantir.
     const currentId = currentUser.id || currentUser.ID;
     return targetUserId === currentId;
+  };
+
+  // Função auxiliar para definir o texto do Tooltip
+  const getActionStatus = (u) => {
+    if (u.ID === 1) return { disabled: true, text: "O Admin Principal é intocável" };
+    if (isOwnProfile(u.ID)) return { disabled: true, text: "Você não pode alterar a si mesmo" };
+    return { disabled: false, text: "" };
   };
 
   return (
@@ -78,7 +82,10 @@ const UsersList = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {users.map((u) => (
+                {users.map((u) => {
+                  const status = getActionStatus(u);
+                  
+                  return (
                   <TableRow key={u.ID}>
                     <TableCell>{u.ID}</TableCell>
                     <TableCell>{u.name}</TableCell>
@@ -93,23 +100,23 @@ const UsersList = () => {
                     <TableCell align="right">
                       
                       {/* Switch Promover/Rebaixar */}
-                      <Tooltip title={isOwnProfile(u.ID) ? "Você não pode alterar seu próprio cargo" : "Alterar cargo"}>
-                        <span> {/* Span necessário para Tooltip funcionar em elementos Disabled */}
+                      <Tooltip title={status.disabled ? status.text : "Alterar cargo"}>
+                        <span>
                           <Switch 
                             checked={u.role === 'admin'}
                             onChange={() => handleToggleAdmin(u)}
-                            disabled={isOwnProfile(u.ID)} 
+                            disabled={status.disabled} 
                           />
                         </span>
                       </Tooltip>
 
                       {/* Botão Deletar */}
-                      <Tooltip title={isOwnProfile(u.ID) ? "Você não pode se excluir" : "Excluir usuário"}>
+                      <Tooltip title={status.disabled ? status.text : "Excluir usuário"}>
                         <span>
                           <IconButton 
                             color="error" 
                             onClick={() => handleDelete(u.ID)}
-                            disabled={isOwnProfile(u.ID)}
+                            disabled={status.disabled}
                           >
                             <DeleteIcon />
                           </IconButton>
@@ -118,7 +125,8 @@ const UsersList = () => {
 
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>
