@@ -1,0 +1,82 @@
+import React, { useContext } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import theme from './theme';
+import Login from './pages/Login';
+import Home from './pages/Home';
+import RegisterUser from './pages/RegisterUser';
+import { AuthProvider, AuthContext } from './context/AuthContext';
+import Profile from './pages/Profile';
+import UsersList from './pages/UsersList';
+
+// IMPORTAÇÃO NOVA: React Toastify
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+const PrivateRoute = ({ children }) => {
+  const { authenticated, loading } = useContext(AuthContext);
+
+  if (loading) {
+    return <div>Carregando...</div>;
+  }
+
+  if (!authenticated) {
+    return <Navigate to="/" />;
+  }
+
+  return children;
+};
+
+function App() {
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      
+      {/* Container dos Popups (Fica visível por cima de tudo) */}
+      <ToastContainer position="top-right" autoClose={3000} />
+
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Login />} />
+            <Route 
+              path="/home" 
+              element={
+                <PrivateRoute>
+                  <Home />
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/register-user" 
+              element={
+                <PrivateRoute>
+                  <RegisterUser />
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/profile" 
+              element={
+                <PrivateRoute>
+                  <Profile />
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/users" 
+              element={
+                <PrivateRoute>
+                  <UsersList />
+                </PrivateRoute>
+              } 
+            />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
+  );
+}
+
+export default App;
