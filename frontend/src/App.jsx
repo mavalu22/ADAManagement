@@ -9,6 +9,12 @@ import RegisterUser from './pages/RegisterUser';
 import { AuthProvider, AuthContext } from './context/AuthContext';
 import Profile from './pages/Profile';
 import UsersList from './pages/UsersList';
+import ImportData from './pages/ImportData';
+import { SemesterProvider } from './context/SemesterContext';
+import AcademicReport from './pages/Reports/AcademicReport';
+import CoursesReport from './pages/Reports/CoursesReport';
+import StudentsReport from './pages/Reports/StudentsReport';
+import StudentProfile from './pages/StudentProfile';
 
 // IMPORTAÇÃO NOVA: React Toastify
 import { ToastContainer } from 'react-toastify';
@@ -37,43 +43,57 @@ function App() {
       <ToastContainer position="top-right" autoClose={3000} />
 
       <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Login />} />
-            <Route 
-              path="/home" 
-              element={
-                <PrivateRoute>
-                  <Home />
-                </PrivateRoute>
-              } 
-            />
-            <Route 
-              path="/register-user" 
-              element={
-                <PrivateRoute>
-                  <RegisterUser />
-                </PrivateRoute>
-              } 
-            />
-            <Route 
-              path="/profile" 
-              element={
-                <PrivateRoute>
-                  <Profile />
-                </PrivateRoute>
-              } 
-            />
-            <Route 
-              path="/users" 
-              element={
-                <PrivateRoute>
-                  <UsersList />
-                </PrivateRoute>
-              } 
-            />
-          </Routes>
-        </BrowserRouter>
+        <SemesterProvider>
+            <BrowserRouter>
+            <Routes>
+                <Route path="/" element={<Login />} />
+                <Route 
+                path="/home" 
+                element={
+                    <PrivateRoute>
+                    <Home />
+                    </PrivateRoute>
+                } 
+                />
+                <Route 
+                path="/register-user" 
+                element={
+                    <PrivateRoute>
+                    <RegisterUser />
+                    </PrivateRoute>
+                } 
+                />
+                <Route 
+                path="/profile" 
+                element={
+                    <PrivateRoute>
+                    <Profile />
+                    </PrivateRoute>
+                } 
+                />
+                <Route 
+                path="/users" 
+                element={
+                    <PrivateRoute>
+                    <UsersList />
+                    </PrivateRoute>
+                } 
+                />
+                <Route 
+                path="/import" 
+                element={
+                    <PrivateRoute>
+                    <ImportData />
+                    </PrivateRoute>
+                } 
+                />
+                <Route path="/report/records" element={<PrivateRoute><AcademicReport /></PrivateRoute>} />
+                <Route path="/report/courses" element={<PrivateRoute><CoursesReport /></PrivateRoute>} />
+                <Route path="/report/students" element={<PrivateRoute><StudentsReport /></PrivateRoute>} />
+                <Route path="/students/:registration" element={<PrivateRoute><StudentProfile /></PrivateRoute>} />
+            </Routes>
+            </BrowserRouter>
+        </SemesterProvider>
       </AuthProvider>
     </ThemeProvider>
   );

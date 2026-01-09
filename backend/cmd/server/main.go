@@ -29,10 +29,20 @@ func main() {
 	// Se tiver outras tabelas no futuro (ex: Alunos), adicione aqui também.
 	log.Println("🧹 Limpando banco de dados...")
 	database.DB.Migrator().DropTable(&models.User{})
+	database.DB.Migrator().DropTable(&models.Course{})
+	database.DB.Migrator().DropTable(&models.Semester{})
+	database.DB.Migrator().DropTable(&models.Student{})
+	database.DB.Migrator().DropTable(&models.AcademicRecord{})
 	// ==========================================================
 
 	// Recria a tabela vazia
-	err := database.DB.AutoMigrate(&models.User{})
+	err := database.DB.AutoMigrate(
+		&models.User{},
+		&models.Course{},
+		&models.Semester{},
+		&models.Student{},
+		&models.AcademicRecord{},
+	)
 	if err != nil {
 		log.Fatal("Erro na migração:", err)
 	}

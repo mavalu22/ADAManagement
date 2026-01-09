@@ -10,18 +10,27 @@ import {
   Avatar,
   Tooltip,
   Divider,
-  ListItemIcon
+  ListItemIcon,
+  FormControl, // Adicionado
+  Select       // Adicionado
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
+// Importamos o Contexto de Semestre recém-criado
+import { SemesterContext } from '../context/SemesterContext'; 
+
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import DashboardIcon from '@mui/icons-material/Dashboard';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
 const Header = () => {
-  const { logout, user } = useContext(AuthContext); // Pegamos o 'user' aqui
+  const { logout, user } = useContext(AuthContext);
+  // Consumimos os dados dos semestres aqui
+  const { semesters, selectedSemester, changeSemester } = useContext(SemesterContext);
+  
   const navigate = useNavigate();
   
   const [anchorEl, setAnchorEl] = useState(null);
@@ -60,12 +69,35 @@ const Header = () => {
                 sx={{
                 height: 50,
                 marginRight: 2,
-                filter: 'brightness(0) invert(1)' 
                 }}
                 alt="Logo UFES"
                 src={logoUrl}
             />
         </Box>
+
+        {semesters.length > 0 && (
+            <Box sx={{ minWidth: 120, mr: 3, bgcolor: 'rgba(255,255,255,0.15)', borderRadius: 1 }}>
+                <FormControl fullWidth size="small">
+                    <Select
+                        value={selectedSemester}
+                        onChange={(e) => changeSemester(e.target.value)}
+                        displayEmpty
+                        sx={{ 
+                            color: 'white', 
+                            '.MuiSvgIcon-root': { color: 'white' },
+                            '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                            fontWeight: 'bold'
+                        }}
+                    >
+                        {semesters.map((sem) => (
+                            <MenuItem key={sem.ID} value={sem.ID}>
+                                {sem.code}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+            </Box>
+        )}
 
         {/* Área do Usuário */}
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -125,14 +157,18 @@ const Header = () => {
           </MenuItem>
           
           <Divider />
-          {/* Só mostra a opção de cadastrar se for ADMIN */}
           {user && user.role === 'admin' && (
-            <MenuItem onClick={() => handleNavigate('/register-user')}>
-                <ListItemIcon>
-                <PersonAddIcon fontSize="small" />
-                </ListItemIcon>
-                Cadastrar Usuário
-            </MenuItem>
+            <div>
+                <MenuItem onClick={() => handleNavigate('/import')}>
+                    <ListItemIcon><CloudUploadIcon fontSize="small" /></ListItemIcon>
+                    Importar Dados
+                </MenuItem>
+
+                <MenuItem onClick={() => handleNavigate('/register-user')}>
+                    <ListItemIcon><PersonAddIcon fontSize="small" /></ListItemIcon>
+                    Cadastrar Usuário
+                </MenuItem>
+            </div>
           )}
           
           <Divider />
