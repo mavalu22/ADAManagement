@@ -16,20 +16,22 @@ const UsersList = () => {
   const [users, setUsers] = useState([]);
   const { user: currentUser } = useContext(AuthContext);
   
-  // Refs para Textos
+  // 1. REFS para campos de texto (Performance: não re-renderiza ao digitar)
   const nameRef = useRef(null);
   const emailRef = useRef(null);
-  
-  // State para Select
+
+  // 2. STATE para o Select (Necessário para limpar visualmente o dropdown)
   const [role, setRole] = useState('');
 
   const fetchUsers = async () => {
     try {
       const params = new URLSearchParams();
       
+      // Leitura dos Refs
       if (nameRef.current?.value) params.append('name', nameRef.current.value);
       if (emailRef.current?.value) params.append('email', emailRef.current.value);
       
+      // Leitura do State
       if (role) params.append('role', role);
 
       const response = await api.get(`/users?${params.toString()}`);
@@ -45,27 +47,60 @@ const UsersList = () => {
   }, []);
 
   const handleClear = () => {
+    // Limpa os campos de texto
     if (nameRef.current) nameRef.current.value = '';
     if (emailRef.current) emailRef.current.value = '';
     
-    setRole(''); // Reseta visualmente
+    // Limpa o dropdown visualmente atualizando o estado
+    setRole('');
   };
 
-  // Funções de ação (delete, toggle) permanecem iguais...
-  const handleDelete = async (id) => { /* ... */ };
-  const handleToggleAdmin = async (targetUser) => { /* ... */ };
-  const isOwnProfile = (targetUserId) => { /* ... */ };
-  const getActionStatus = (u) => { /* ... */ };
+  // Funções de Ação (Delete/Update)
+  const handleDelete = async (id) => {
+    if (!window.confirm("Tem certeza que deseja remover este usuário?")) return;
+    try {
+      await api.delete(`/users/${id}`);
+      toast.success("Usuário removido.");
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Erro ao deletar.");
+    }
+  };
+
+  const handleToggleAdmin = async (targetUser) => {
+    const newRole = targetUser.role === 'admin' ? 'user' : 'admin';
+    try {
+      await api.put(`/users/${targetUser.ID}`, { role: newRole });
+      toast.success(`Permissão alterada com sucesso.`);
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Erro ao alterar permissão.");
+    }
+  };
+
+  const isOwnProfile = (targetUserId) => {
+    if (!currentUser) return false;
+    const currentId = currentUser.id || currentUser.ID;
+    return targetUserId === currentId;
+  };
+
+  const getActionStatus = (u) => {
+    if (u.ID === 1) return { disabled: true, text: "O Admin Principal é intocável" };
+    if (isOwnProfile(u.ID)) return { disabled: true, text: "Você não pode alterar a si mesmo" };
+    return { disabled: false, text: "" };
+  };
 
   return (
     <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
       <Header />
       <Container maxWidth="lg" sx={{ mt: 5 }}>
+        
         <Paper elevation={3} sx={{ p: 4, mb: 3 }}>
           <Typography variant="h5" color="primary" fontWeight="bold" mb={3}>
             Gerenciamento de Usuários
           </Typography>
           
+          {/* Filtros */}
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} sm={4}>
                 <TextField fullWidth label="Nome" inputRef={nameRef} size="small" />
@@ -75,7 +110,9 @@ const UsersList = () => {
             </Grid>
             <Grid item xs={12} sm={2}>
                 <TextField 
-                    select fullWidth label="Permissão" 
+                    select 
+                    fullWidth 
+                    label="Permissão" 
                     value={role} 
                     onChange={(e) => setRole(e.target.value)} 
                     size="small"
@@ -92,47 +129,57 @@ const UsersList = () => {
           </Grid>
         </Paper>
           
-        {/* Tabela permanece igual... */}
         <Paper elevation={3}>
-            <TableContainer>
-                <Table>
-                    {/* ... cabeçalho ... */}
-                    <TableHead>
-                        <TableRow>
-                        <TableCell>ID</TableCell>
-                        <TableCell>Nome</TableCell>
-                        <TableCell>Email</TableCell>
-                        <TableCell>Permissão</TableCell>
-                        <TableCell align="right">Ações</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {users.map((u) => {
-                            // ... lógica do map ...
-                             const status = { disabled: false, text: "" }; // Simplificado para exemplo, mantenha sua lógica original
-                             if (u.ID === 1) { status.disabled = true; status.text = "Admin intocável"; }
-                             
-                            return (
-                                <TableRow key={u.ID}>
-                                    <TableCell>{u.ID}</TableCell>
-                                    <TableCell>{u.name}</TableCell>
-                                    <TableCell>{u.email}</TableCell>
-                                    <TableCell>
-                                    <Chip 
-                                        label={u.role === 'admin' ? "Administrador" : "Usuário"} 
-                                        color={u.role === 'admin' ? "primary" : "default"}
-                                        size="small"
-                                    />
-                                    </TableCell>
-                                    <TableCell align="right">
-                                       {/* Botões... mantenha os originais */}
-                                    </TableCell>
-                                </TableRow>
-                            )
-                        })}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>ID</TableCell>
+                  <TableCell>Nome</TableCell>
+                  <TableCell>Email</TableCell>
+                  <TableCell>Permissão</TableCell>
+                  <TableCell align="right">Ações</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {users.map((u) => {
+                  const status = getActionStatus(u);
+                  return (
+                  <TableRow key={u.ID}>
+                    <TableCell>{u.ID}</TableCell>
+                    <TableCell>{u.name}</TableCell>
+                    <TableCell>{u.email}</TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={u.role === 'admin' ? "Administrador" : "Usuário"} 
+                        color={u.role === 'admin' ? "primary" : "default"}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Tooltip title={status.disabled ? status.text : "Alterar cargo"}>
+                        <span>
+                          <Switch 
+                            checked={u.role === 'admin'}
+                            onChange={() => handleToggleAdmin(u)}
+                            disabled={status.disabled} 
+                          />
+                        </span>
+                      </Tooltip>
+                      <Tooltip title={status.disabled ? status.text : "Excluir usuário"}>
+                        <span>
+                          <IconButton color="error" onClick={() => handleDelete(u.ID)} disabled={status.disabled}>
+                            <DeleteIcon />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
         </Paper>
       </Container>
     </Box>
