@@ -11,12 +11,27 @@ import (
 
 // Listar todos os usuários (Apenas Admin)
 func GetUsersHandler(c *gin.Context) {
+	query := database.DB.Model(&models.User{})
+
+	if name := c.Query("name"); name != "" {
+		query = query.Where("name LIKE ?", "%"+name+"%")
+	}
+
+	if email := c.Query("email"); email != "" {
+		query = query.Where("email LIKE ?", "%"+email+"%")
+	}
+
+	if role := c.Query("role"); role != "" {
+		query = query.Where("role = ?", role)
+	}
+
 	var users []models.User
-	// Busca todos, omitindo a senha
-	if result := database.DB.Find(&users); result.Error != nil {
+	// Omitimos a senha por segurança
+	if err := query.Omit("password").Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar usuários"})
 		return
 	}
+
 	c.JSON(http.StatusOK, users)
 }
 

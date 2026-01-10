@@ -73,10 +73,9 @@ useEffect(() => {
         </Paper>
 
         <Grid container spacing={3}>
-            
             {/* GRÁFICO 1: EVOLUÇÃO DA CARGA HORÁRIA (LINHA) */}
             <Grid item xs={12} md={8}>
-                <Paper sx={{ p: 3, height: 400 }}>
+                <Paper sx={{ p: 6, height: 400 }}>
                     <Typography variant="h6" gutterBottom color="primary">
                         Evolução da Integralização (Horas)
                     </Typography>
