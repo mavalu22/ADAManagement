@@ -15,7 +15,7 @@ import AcademicReport from './pages/Reports/AcademicReport';
 import CoursesReport from './pages/Reports/CoursesReport';
 import StudentsReport from './pages/Reports/StudentsReport';
 import StudentProfile from './pages/StudentProfile';
-
+import IndicatorsReport from './pages/Reports/IndicatorsReport';
 // IMPORTAÇÃO NOVA: React Toastify
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -87,10 +87,12 @@ function App() {
                     </PrivateRoute>
                 } 
                 />
+                <Route path="/reports/records" element={<PrivateRoute><AcademicReport /></PrivateRoute>} />
                 <Route path="/report/records" element={<PrivateRoute><AcademicReport /></PrivateRoute>} />
                 <Route path="/report/courses" element={<PrivateRoute><CoursesReport /></PrivateRoute>} />
                 <Route path="/report/students" element={<PrivateRoute><StudentsReport /></PrivateRoute>} />
                 <Route path="/students/:registration" element={<PrivateRoute><StudentProfile /></PrivateRoute>} />
+                <Route path="/reports/indicators" element={<PrivateRoute><IndicatorsReport /></PrivateRoute>} />
             </Routes>
             </BrowserRouter>
         </SemesterProvider>

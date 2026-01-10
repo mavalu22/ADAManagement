@@ -30,6 +30,7 @@ func SetupRoutes(r *gin.Engine) {
 			protected.GET("/reports/courses", controllers.GetCoursesReportHandler)
 			protected.GET("/reports/students", controllers.GetStudentsReportHandler)
 			protected.GET("/students/:registration/history", controllers.GetStudentHistoryHandler)
+			protected.GET("/reports/dashboard", controllers.GetDashboardIndicatorsHandler)
 		}
 	}
 }

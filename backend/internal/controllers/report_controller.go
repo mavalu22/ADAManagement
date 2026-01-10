@@ -21,7 +21,6 @@ func GetSemestersHandler(c *gin.Context) {
 
 // 2. Relatório de Registros Acadêmicos (Filtrado por Semestre)
 func GetAcademicRecordsReportHandler(c *gin.Context) {
-	// Query Base com todos os Joins necessários para filtrar por tabelas relacionadas
 	query := database.DB.Model(&models.AcademicRecord{}).
 		Joins("JOIN students ON students.id = academic_records.student_id").
 		Joins("JOIN courses ON courses.id = students.course_id").
@@ -29,24 +28,38 @@ func GetAcademicRecordsReportHandler(c *gin.Context) {
 		Preload("Student.Course").
 		Preload("Semester")
 
-	// 1. Filtro de Semestre (Obrigatório pelo contexto)
+	// 1. Filtro de Semestre (Obrigatório)
 	if semID := c.Query("semester_id"); semID != "" {
 		query = query.Where("academic_records.semester_id = ?", semID)
 	}
 
-	// 2. Filtros da Barra
+	// --- NOVOS FILTROS ESPECIAIS (Vêm do Dashboard) ---
+
+	// Modo Crítico: Filtra alunos com problemas de trancamento ou carga horária
+	if mode := c.Query("mode"); mode == "critical" {
+		query = query.Where("(academic_records.locks > 1 OR academic_records.semesters_no_hours > 1)")
+		query = query.Where("academic_records.status = ?", "Em regularidade") // Apenas ativos
+	}
+
+	// Filtro de Matérias Pendentes (Reta final)
+	if maxPending := c.Query("max_pending"); maxPending != "" {
+		query = query.Where("academic_records.pending_obligatory <= ?", maxPending)
+		query = query.Where("academic_records.status = ?", "Em regularidade")
+		query = query.Order("academic_records.pending_obligatory ASC") // Ordena pelos mais próximos de formar
+	}
+
+	// --------------------------------------------------
+
+	// Filtros Normais (Barra de Pesquisa)
 	if reg := c.Query("registration"); reg != "" {
 		query = query.Where("students.registration LIKE ?", "%"+reg+"%")
 	}
-
 	if sName := c.Query("student_name"); sName != "" {
-		query = query.Where("students.name LIKE ?", "%"+sName+"%")
+		query = query.Where("students.name ILIKE ?", "%"+sName+"%")
 	}
-
 	if cName := c.Query("course_name"); cName != "" {
-		query = query.Where("courses.name LIKE ?", "%"+cName+"%")
+		query = query.Where("courses.name ILIKE ?", "%"+cName+"%")
 	}
-
 	if status := c.Query("status"); status != "" {
 		query = query.Where("academic_records.status = ?", status)
 	}

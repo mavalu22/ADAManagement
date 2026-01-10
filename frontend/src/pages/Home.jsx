@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { Box, Typography, Container, Grid, Paper } from '@mui/material';
+import { Box, Typography, Container, Grid, Paper, Card, CardContent, CardActionArea } from '@mui/material';
 import Header from '../components/Header';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
@@ -99,7 +99,29 @@ const Home = () => {
                   </Paper>
               </Grid>
             )}
-
+            <Grid item xs={12} sm={6} md={4}>
+                <Card 
+                    sx={{ 
+                        height: '100%', 
+                        display: 'flex', 
+                        flexDirection: 'column',
+                        cursor: 'pointer',
+                        transition: '0.3s',
+                        '&:hover': { transform: 'scale(1.02)', boxShadow: 6 }
+                    }}
+                    onClick={() => navigate('/reports/indicators')} 
+                >
+                    <CardContent sx={{ flexGrow: 1, textAlign: 'center', py: 4 }}>
+                        <AssessmentIcon sx={{ fontSize: 60, color: '#9c27b0', mb: 2 }} />
+                        <Typography gutterBottom variant="h5" component="h2" sx={{ color: '#9c27b0' }}>
+                            Indicadores
+                        </Typography>
+                        <Typography>
+                            Dashboard estratégico de retenção e risco.
+                        </Typography>
+                    </CardContent>
+                </Card>
+            </Grid>
         </Grid>
       </Container>
     </Box>
