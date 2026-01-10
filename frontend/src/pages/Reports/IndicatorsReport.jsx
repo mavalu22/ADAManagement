@@ -2,8 +2,8 @@ import React, { useEffect, useState, useContext } from 'react';
 import { 
   Box, Container, Grid, Paper, Typography, LinearProgress,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, 
-  Chip, IconButton, Tooltip, Button
-} from '@mui/material';
+  Chip, IconButton, Tooltip, Button, useTheme
+} from '@mui/material'; // <--- Adicionado useTheme
 import { 
   PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer 
 } from 'recharts';
@@ -23,6 +23,7 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF'];
 
 const IndicatorsReport = () => {
   const navigate = useNavigate();
+  const theme = useTheme(); // <--- Hook do tema
   const { selectedSemester, selectedSemesterCode } = useContext(SemesterContext);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -38,8 +39,40 @@ const IndicatorsReport = () => {
   }, [selectedSemester]);
 
   const handlePieClick = (entry) => {
-    // Redireciona para o relatório acadêmico filtrando pelo status da fatia clicada
     navigate(`/reports/records?status=${entry.name}`);
+  };
+
+  // Define as cores da scrollbar baseadas no modo atual (sem callback)
+  const scrollbarTrack = theme.palette.mode === 'light' ? '#f1f1f1' : '#0F172A';
+  const scrollbarThumb = theme.palette.mode === 'light' ? '#c1c1c1' : '#334155';
+  const scrollbarThumbHover = theme.palette.mode === 'light' ? '#a8a8a8' : '#475569';
+
+  const scrollStyle = {
+    flexGrow: 1,
+    overflowY: 'auto', 
+    '&::-webkit-scrollbar': {
+      width: '8px',
+      height: '8px',
+    },
+    '&::-webkit-scrollbar-track': {
+      backgroundColor: scrollbarTrack,
+      borderRadius: '4px',
+    },
+    '&::-webkit-scrollbar-thumb': {
+      backgroundColor: scrollbarThumb,
+      borderRadius: '4px',
+    },
+    '&::-webkit-scrollbar-thumb:hover': {
+      backgroundColor: scrollbarThumbHover,
+    },
+  };
+
+  // Estilo do Tooltip do Recharts para Dark Mode
+  const chartTooltipStyle = {
+    backgroundColor: theme.palette.background.paper,
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: '8px',
+    color: theme.palette.text.primary
   };
 
   if (loading) return <LinearProgress />;
@@ -77,12 +110,13 @@ const IndicatorsReport = () => {
                                 label
                                 onClick={handlePieClick}
                                 style={{ cursor: 'pointer' }}
+                                stroke={theme.palette.background.paper} // Borda da fatia na cor do fundo
                             >
                                 {data.status_distribution.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                             </Pie>
-                            <RechartsTooltip />
+                            <RechartsTooltip contentStyle={chartTooltipStyle} />
                             <Legend verticalAlign="bottom" height={36}/>
                         </PieChart>
                     </ResponsiveContainer>
@@ -108,7 +142,7 @@ const IndicatorsReport = () => {
                         </Button>
                     </Box>
                     
-                    <TableContainer sx={{ flexGrow: 1 }}>
+                    <TableContainer sx={scrollStyle}>
                         <Table size="small" stickyHeader>
                             <TableHead>
                                 <TableRow>
@@ -173,8 +207,8 @@ const IndicatorsReport = () => {
                         </Button>
                     </Box>
 
-                    <TableContainer>
-                        <Table size="small">
+                    <TableContainer sx={{ maxHeight: 400, ...scrollStyle }}>
+                        <Table size="small" stickyHeader>
                             <TableHead>
                                 <TableRow>
                                     <TableCell sx={{ fontWeight: 'bold' }}>Matrícula</TableCell>

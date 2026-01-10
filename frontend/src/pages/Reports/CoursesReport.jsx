@@ -57,7 +57,7 @@ const CoursesReport = () => {
                 </Grid>
                 <Grid item xs={12} sm={3} sx={{ display: 'flex', gap: 1 }}>
                     <Button variant="contained" startIcon={<SearchIcon />} onClick={fetchCourses}>Filtrar</Button>
-                    <Button variant="outlined" color="inherit" onClick={handleClear}><ClearIcon /></Button>
+                    <Button variant="outlined" onClick={handleClear}><ClearIcon /></Button>
                 </Grid>
             </Grid>
         </Paper>
@@ -65,7 +65,7 @@ const CoursesReport = () => {
         <TableContainer component={Paper}>
           <Table>
             <TableHead>
-              <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+              <TableRow>
                 <TableCell><b>Código</b></TableCell>
                 <TableCell><b>Nome do Curso</b></TableCell>
                 <TableCell><b>Coordenador</b></TableCell>

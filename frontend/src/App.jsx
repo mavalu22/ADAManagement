@@ -1,22 +1,26 @@
 import React, { useContext } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import theme from './theme';
+
+// Contexts
+import { AuthProvider, AuthContext } from './context/AuthContext';
+import { SemesterProvider } from './context/SemesterContext';
+import { ThemeContextProvider } from './context/ThemeContext'; // <--- IMPORTAÇÃO NOVA
+
+// Pages
 import Login from './pages/Login';
 import Home from './pages/Home';
 import RegisterUser from './pages/RegisterUser';
-import { AuthProvider, AuthContext } from './context/AuthContext';
 import Profile from './pages/Profile';
-import UsersList from './pages/UsersList';
+import UsersList from './pages/UsersList'; // Verifique se o caminho está correto na sua pasta
 import ImportData from './pages/ImportData';
-import { SemesterProvider } from './context/SemesterContext';
 import AcademicReport from './pages/Reports/AcademicReport';
 import CoursesReport from './pages/Reports/CoursesReport';
 import StudentsReport from './pages/Reports/StudentsReport';
 import StudentProfile from './pages/StudentProfile';
 import IndicatorsReport from './pages/Reports/IndicatorsReport';
-// IMPORTAÇÃO NOVA: React Toastify
+
+// React Toastify
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -36,10 +40,12 @@ const PrivateRoute = ({ children }) => {
 
 function App() {
   return (
-    <ThemeProvider theme={theme}>
+    // 1. Envolvemos tudo no ThemeContextProvider
+    <ThemeContextProvider>
+      {/* CssBaseline agora pega as cores dinâmicas do contexto */}
       <CssBaseline />
       
-      {/* Container dos Popups (Fica visível por cima de tudo) */}
+      {/* Container dos Popups */}
       <ToastContainer position="top-right" autoClose={3000} />
 
       <AuthProvider>
@@ -47,6 +53,7 @@ function App() {
             <BrowserRouter>
             <Routes>
                 <Route path="/" element={<Login />} />
+                
                 <Route 
                 path="/home" 
                 element={
@@ -55,6 +62,7 @@ function App() {
                     </PrivateRoute>
                 } 
                 />
+                
                 <Route 
                 path="/register-user" 
                 element={
@@ -63,6 +71,7 @@ function App() {
                     </PrivateRoute>
                 } 
                 />
+                
                 <Route 
                 path="/profile" 
                 element={
@@ -71,6 +80,7 @@ function App() {
                     </PrivateRoute>
                 } 
                 />
+                
                 <Route 
                 path="/users" 
                 element={
@@ -79,6 +89,7 @@ function App() {
                     </PrivateRoute>
                 } 
                 />
+                
                 <Route 
                 path="/import" 
                 element={
@@ -93,11 +104,12 @@ function App() {
                 <Route path="/report/students" element={<PrivateRoute><StudentsReport /></PrivateRoute>} />
                 <Route path="/students/:registration" element={<PrivateRoute><StudentProfile /></PrivateRoute>} />
                 <Route path="/reports/indicators" element={<PrivateRoute><IndicatorsReport /></PrivateRoute>} />
+            
             </Routes>
             </BrowserRouter>
         </SemesterProvider>
       </AuthProvider>
-    </ThemeProvider>
+    </ThemeContextProvider>
   );
 }
 

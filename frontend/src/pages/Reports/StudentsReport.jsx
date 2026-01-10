@@ -103,7 +103,7 @@ const StudentsReport = () => {
               </Grid>
               <Grid item xs={12} sm={2} sx={{ display: 'flex', gap: 1 }}>
                   <Button variant="contained" onClick={fetchStudents} sx={{ minWidth: '40px' }}><SearchIcon /></Button>
-                  <Button variant="outlined" color="inherit" onClick={handleClear} sx={{ minWidth: '40px' }}><ClearIcon /></Button>
+                  <Button variant="outlined" onClick={handleClear} sx={{ minWidth: '40px' }}><ClearIcon /></Button>
               </Grid>
            </Grid>
         </Paper>
@@ -113,7 +113,7 @@ const StudentsReport = () => {
         <TableContainer component={Paper}>
           <Table>
             <TableHead>
-              <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+              <TableRow>
                 <TableCell><b>Matrícula</b></TableCell>
                 <TableCell><b>Nome</b></TableCell>
                 <TableCell><b>Curso</b></TableCell>

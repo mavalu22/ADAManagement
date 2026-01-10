@@ -55,10 +55,10 @@ func GetAcademicRecordsReportHandler(c *gin.Context) {
 		query = query.Where("students.registration LIKE ?", "%"+reg+"%")
 	}
 	if sName := c.Query("student_name"); sName != "" {
-		query = query.Where("students.name ILIKE ?", "%"+sName+"%")
+		query = query.Where("students.name LIKE ?", "%"+sName+"%")
 	}
 	if cName := c.Query("course_name"); cName != "" {
-		query = query.Where("courses.name ILIKE ?", "%"+cName+"%")
+		query = query.Where("courses.name LIKE ?", "%"+cName+"%")
 	}
 	if status := c.Query("status"); status != "" {
 		query = query.Where("academic_records.status = ?", status)

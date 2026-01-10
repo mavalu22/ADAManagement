@@ -119,9 +119,10 @@ const AcademicReport = () => {
                 >
                     <MenuItem value="">Todos</MenuItem>
                     <MenuItem value="Em regularidade">Em regularidade</MenuItem>
-                    <MenuItem value="Risco de Evasão">Risco de Evasão</MenuItem>
+                    <MenuItem value="PAE">PAE</MenuItem>
+                    <MenuItem value="PIC">PIC</MenuItem>
+                    <MenuItem value="Bloqueio de matricula">Bloqueio de matricula</MenuItem>
                     <MenuItem value="Desligamento">Desligamento</MenuItem>
-                    {/* Adicione outros status conforme seu banco */}
                 </TextField>
             </Grid>
             <Grid item xs={12} sm={2} sx={{display:'flex', gap: 1}}>
@@ -136,7 +137,7 @@ const AcademicReport = () => {
         <TableContainer component={Paper}>
           <Table size="small">
             <TableHead>
-              <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+              <TableRow>
                 <TableCell><b>Matrícula</b></TableCell>
                 <TableCell><b>Aluno</b></TableCell>
                 <TableCell><b>Curso</b></TableCell>

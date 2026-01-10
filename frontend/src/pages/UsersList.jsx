@@ -118,7 +118,7 @@ const UsersList = () => {
                     size="small"
                 >
                     <MenuItem value="">Todas</MenuItem>
-                    <MenuItem value="admin">Admin</MenuItem>
+                    <MenuItem value="admin">Administrador</MenuItem>
                     <MenuItem value="user">Usuário</MenuItem>
                 </TextField>
             </Grid>

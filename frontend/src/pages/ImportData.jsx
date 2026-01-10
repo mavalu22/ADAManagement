@@ -67,7 +67,7 @@ const ImportData = () => {
               borderRadius: 2, 
               p: 4, 
               mb: 3,
-              bgcolor: '#fafafa' 
+              bgcolor: 'background.paper',
             }}
           >
             <input

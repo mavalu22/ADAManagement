@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { Box, Typography, Container, Grid, Paper, Card, CardContent, CardActionArea } from '@mui/material';
+import { Box, Typography, Container, Grid, Paper } from '@mui/material'; // Removido Card, CardContent, etc, pois não são mais usados
 import Header from '../components/Header';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
@@ -9,6 +9,7 @@ import PeopleIcon from '@mui/icons-material/People';       // Gestão de Usuári
 import AssessmentIcon from '@mui/icons-material/Assessment'; // Relatório Acadêmico
 import SchoolIcon from '@mui/icons-material/School';       // Relatório de Alunos
 import ClassIcon from '@mui/icons-material/Class';         // Relatório de Cursos
+import AnalyticsIcon from '@mui/icons-material/Analytics'; // Ícone diferente para Indicadores (para não repetir o Assessment)
 
 const Home = () => {
   const navigate = useNavigate();
@@ -26,7 +27,7 @@ const Home = () => {
     justifyContent: 'center',
     transition: 'transform 0.2s, box-shadow 0.2s',
     '&:hover': { 
-        bgcolor: '#f5f9ff', // Um azul muito suave no fundo
+        bgcolor: 'background.paper', // Um azul muito suave no fundo
         transform: 'translateY(-5px)', // Levanta um pouco
         boxShadow: 6 
     }
@@ -99,29 +100,21 @@ const Home = () => {
                   </Paper>
               </Grid>
             )}
+
+            {/* CARD 5: INDICADORES (Agora padronizado) */}
             <Grid item xs={12} sm={6} md={4}>
-                <Card 
-                    sx={{ 
-                        height: '100%', 
-                        display: 'flex', 
-                        flexDirection: 'column',
-                        cursor: 'pointer',
-                        transition: '0.3s',
-                        '&:hover': { transform: 'scale(1.02)', boxShadow: 6 }
-                    }}
-                    onClick={() => navigate('/reports/indicators')} 
-                >
-                    <CardContent sx={{ flexGrow: 1, textAlign: 'center', py: 4 }}>
-                        <AssessmentIcon sx={{ fontSize: 60, color: '#9c27b0', mb: 2 }} />
-                        <Typography gutterBottom variant="h5" component="h2" sx={{ color: '#9c27b0' }}>
-                            Indicadores
-                        </Typography>
-                        <Typography>
-                            Dashboard estratégico de retenção e risco.
-                        </Typography>
-                    </CardContent>
-                </Card>
+                <Paper elevation={2} sx={cardStyle} onClick={() => navigate('/reports/indicators')}>
+                    {/* Usei AnalyticsIcon para diferenciar do Relatório Acadêmico, mas mantive a cor roxa */}
+                    <AnalyticsIcon sx={{ fontSize: 60, color: '#9c27b0', mb: 2 }} /> 
+                    <Typography variant="h6" fontWeight="bold" sx={{ color: '#9c27b0' }}>
+                        Indicadores
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                        Dashboard estratégico de retenção e risco.
+                    </Typography>
+                </Paper>
             </Grid>
+
         </Grid>
       </Container>
     </Box>

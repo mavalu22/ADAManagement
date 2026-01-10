@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  Box, Container, Grid, Paper, Typography, Chip, Divider, Button, 
+  Box, Container, Grid, Paper, Typography, Chip, Button, 
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, LinearProgress 
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles'; // <--- Hook do tema
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import Header from '../components/Header';
@@ -12,12 +13,12 @@ import api from '../services/api';
 const StudentProfile = () => {
   const { registration } = useParams();
   const navigate = useNavigate();
+  const theme = useTheme(); // <--- Inicializa o tema
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-useEffect(() => {
+  useEffect(() => {
     const cleanRegistration = registration ? registration.trim() : '';
-
     if (!cleanRegistration) return;
 
     api.get(`/students/${cleanRegistration}/history`)
@@ -33,14 +34,23 @@ useEffect(() => {
 
   const { student, history } = data;
 
-  // Prepara dados para os gráficos (Recharts precisa de um array simples)
   const chartData = history.map(rec => ({
-    name: rec.semester.code, // Eixo X (2025/1, 2025/2)
+    name: rec.semester.code,
     integralizada: rec.integralized_hours,
     pendente: rec.pending_obligatory,
     trancamentos: rec.locks,
     status: rec.status
   }));
+
+  // Estilos dinâmicos para gráficos
+  const chartAxisColor = theme.palette.text.secondary;
+  const chartGridColor = theme.palette.divider;
+  const tooltipStyle = {
+      backgroundColor: theme.palette.background.paper,
+      border: `1px solid ${theme.palette.divider}`,
+      borderRadius: '8px',
+      color: theme.palette.text.primary
+  };
 
   return (
     <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -52,7 +62,7 @@ useEffect(() => {
             Voltar
         </Button>
         
-        <Paper elevation={3} sx={{ p: 4, mb: 4, borderLeft: '6px solid #004b8d' }}>
+        <Paper elevation={3} sx={{ p: 4, mb: 4, borderLeft: '6px solid', borderLeftColor: 'primary.main' }}>
             <Grid container spacing={2}>
                 <Grid item xs={12} md={8}>
                     <Typography variant="h4" color="primary" fontWeight="bold">
@@ -61,7 +71,7 @@ useEffect(() => {
                     <Typography variant="h6" color="textSecondary">
                         Matrícula: {student.registration}
                     </Typography>
-                    <Typography variant="subtitle1">
+                    <Typography variant="subtitle1" color="textPrimary">
                         Curso: <b>{student.course?.name}</b>
                     </Typography>
                 </Grid>
@@ -81,10 +91,10 @@ useEffect(() => {
                     </Typography>
                     <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis />
-                            <RechartsTooltip />
+                            <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
+                            <XAxis dataKey="name" tick={{ fill: chartAxisColor }} />
+                            <YAxis tick={{ fill: chartAxisColor }} />
+                            <RechartsTooltip contentStyle={tooltipStyle} />
                             <Legend />
                             <Line type="monotone" dataKey="integralizada" stroke="#004b8d" strokeWidth={3} name="CH Cumprida" />
                         </LineChart>
@@ -100,10 +110,10 @@ useEffect(() => {
                     </Typography>
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis />
-                            <RechartsTooltip />
+                            <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
+                            <XAxis dataKey="name" tick={{ fill: chartAxisColor }} />
+                            <YAxis tick={{ fill: chartAxisColor }} />
+                            <RechartsTooltip contentStyle={tooltipStyle} />
                             <Bar dataKey="pendente" fill="#d32f2f" name="Obrigatórias Faltantes" />
                         </BarChart>
                     </ResponsiveContainer>
@@ -119,7 +129,7 @@ useEffect(() => {
                     <TableContainer>
                         <Table>
                             <TableHead>
-                                <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                <TableRow>
                                     <TableCell>Semestre</TableCell>
                                     <TableCell>Status (Enquadramento)</TableCell>
                                     <TableCell>Detalhe</TableCell>
