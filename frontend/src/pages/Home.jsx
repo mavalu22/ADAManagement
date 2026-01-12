@@ -1,37 +1,105 @@
-import React, { useContext } from 'react';
-import { Box, Typography, Container, Grid, Paper } from '@mui/material'; // Removido Card, CardContent, etc, pois não são mais usados
+import React, { useContext, useEffect, useState } from 'react';
+import { Box, Typography, Container, Grid, Paper } from '@mui/material';
 import Header from '../components/Header';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
+import { SemesterContext } from '../context/SemesterContext';
+import api from '../services/api';
 
 // Ícones para os Cards
-import PeopleIcon from '@mui/icons-material/People';       // Gestão de Usuários
-import AssessmentIcon from '@mui/icons-material/Assessment'; // Relatório Acadêmico
-import SchoolIcon from '@mui/icons-material/School';       // Relatório de Alunos
-import ClassIcon from '@mui/icons-material/Class';         // Relatório de Cursos
-import AnalyticsIcon from '@mui/icons-material/Analytics'; // Ícone diferente para Indicadores (para não repetir o Assessment)
+import PeopleIcon from '@mui/icons-material/People';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import SchoolIcon from '@mui/icons-material/School';
+import ClassIcon from '@mui/icons-material/Class';
+import AnalyticsIcon from '@mui/icons-material/Analytics';
 
 const Home = () => {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
+  const { selectedSemester } = useContext(SemesterContext);
 
-  // Estilo comum para os cards (efeito hover e tamanho)
-  const cardStyle = {
+  // Estado para controlar se os relatórios estão vazios
+  const [emptyReports, setEmptyReports] = useState({
+    records: false,
+    students: false,
+    courses: false,
+    indicators: false
+  });
+
+  useEffect(() => {
+    const checkDataAvailability = async () => {
+        // Variáveis temporárias para o novo estado
+        let isCoursesEmpty = false;
+        let isRecordsEmpty = true;    // Assume vazio por segurança se não tiver semestre
+        let isStudentsEmpty = true;
+        let isIndicatorsEmpty = true;
+
+        // 1. Checa Cursos (Independente de Semestre)
+        try {
+            const coursesRes = await api.get('/reports/courses');
+            isCoursesEmpty = !coursesRes.data || coursesRes.data.length === 0;
+        } catch (error) {
+            console.error("Erro ao verificar cursos:", error);
+            isCoursesEmpty = true; // Se der erro, bloqueia
+        }
+
+        // 2. Checa Relatórios Dependentes de Semestre
+        if (selectedSemester) {
+            try {
+                const [recordsRes, studentsRes, indicatorsRes] = await Promise.all([
+                    api.get(`/reports/records?semester_id=${selectedSemester}`),
+                    api.get(`/reports/students?semester_id=${selectedSemester}`),
+                    api.get(`/reports/dashboard?semester_id=${selectedSemester}`)
+                ]);
+
+                isRecordsEmpty = !recordsRes.data || recordsRes.data.length === 0;
+                isStudentsEmpty = !studentsRes.data || studentsRes.data.length === 0;
+                
+                // Indicadores (verifica status_distribution)
+                isIndicatorsEmpty = !indicatorsRes.data?.status_distribution || 
+                                    indicatorsRes.data.status_distribution.length === 0;
+
+            } catch (error) {
+                console.error("Erro ao verificar relatórios por semestre:", error);
+                // Mantém como true (vazio) se a API falhar
+            }
+        }
+
+        // Atualiza o estado de uma vez
+        setEmptyReports({
+            courses: isCoursesEmpty,
+            records: isRecordsEmpty,
+            students: isStudentsEmpty,
+            indicators: isIndicatorsEmpty
+        });
+    };
+
+    checkDataAvailability();
+  }, [selectedSemester]);
+
+  // Função geradora de estilo (dinâmico baseado se está vazio ou não)
+  const getCardStyle = (isEmpty) => ({
     p: 3, 
     textAlign: 'center', 
-    cursor: 'pointer', 
+    cursor: isEmpty ? 'default' : 'pointer',
     height: '100%',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     transition: 'transform 0.2s, box-shadow 0.2s',
-    '&:hover': { 
-        bgcolor: 'background.paper', // Um azul muito suave no fundo
-        transform: 'translateY(-5px)', // Levanta um pouco
+    
+    // Estilos visuais de "Desabilitado"
+    opacity: isEmpty ? 0.6 : 1,
+    bgcolor: isEmpty ? 'action.hover' : 'background.paper',
+    pointerEvents: isEmpty ? 'none' : 'auto',
+    
+    '&:hover': !isEmpty ? { 
+        bgcolor: 'background.paper',
+        transform: 'translateY(-5px)',
         boxShadow: 6 
-    }
-  };
+    } : {}
+  });
 
   return (
     <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -47,50 +115,62 @@ const Home = () => {
         
         <Grid container spacing={3}>
             
-            {/* CARD 1: RELATÓRIO ACADÊMICO (O principal) */}
+            {/* CARD 1: RELATÓRIO ACADÊMICO */}
             <Grid item xs={12} sm={6} md={4}>
-                <Paper elevation={2} sx={cardStyle} onClick={() => navigate('/report/records')}>
-                    <AssessmentIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
-                    <Typography variant="h6" fontWeight="bold" color="primary">
+                <Paper 
+                    elevation={emptyReports.records ? 0 : 2} 
+                    sx={getCardStyle(emptyReports.records)} 
+                    onClick={() => !emptyReports.records && navigate('/report/records')}
+                >
+                    <AssessmentIcon sx={{ fontSize: 60, color: emptyReports.records ? 'text.disabled' : 'primary.main', mb: 2 }} />
+                    <Typography variant="h6" fontWeight="bold" color={emptyReports.records ? 'text.disabled' : 'primary'}>
                         Relatório Acadêmico
                     </Typography>
                     <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                        Visão detalhada de enquadramento, progressão e riscos de evasão.
+                        {emptyReports.records ? "Sem dados para este semestre." : "Visão detalhada de enquadramento, progressão e riscos de evasão."}
                     </Typography>
                 </Paper>
             </Grid>
 
             {/* CARD 2: ALUNOS */}
             <Grid item xs={12} sm={6} md={4}>
-                <Paper elevation={2} sx={cardStyle} onClick={() => navigate('/report/students')}>
-                    <SchoolIcon sx={{ fontSize: 60, color: '#2e7d32', mb: 2 }} /> {/* Verde */}
-                    <Typography variant="h6" fontWeight="bold" sx={{ color: '#2e7d32' }}>
+                <Paper 
+                    elevation={emptyReports.students ? 0 : 2} 
+                    sx={getCardStyle(emptyReports.students)} 
+                    onClick={() => !emptyReports.students && navigate('/report/students')}
+                >
+                    <SchoolIcon sx={{ fontSize: 60, color: emptyReports.students ? 'text.disabled' : '#2e7d32', mb: 2 }} />
+                    <Typography variant="h6" fontWeight="bold" sx={{ color: emptyReports.students ? 'text.disabled' : '#2e7d32' }}>
                         Base de Alunos
                     </Typography>
                     <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                        Listagem de alunos ativos no semestre selecionado e seus dados de ingresso.
+                        {emptyReports.students ? "Nenhum aluno encontrado." : "Listagem de alunos ativos no semestre selecionado e seus dados de ingresso."}
                     </Typography>
                 </Paper>
             </Grid>
 
             {/* CARD 3: CURSOS */}
             <Grid item xs={12} sm={6} md={4}>
-                <Paper elevation={2} sx={cardStyle} onClick={() => navigate('/report/courses')}>
-                    <ClassIcon sx={{ fontSize: 60, color: '#ed6c02', mb: 2 }} /> {/* Laranja */}
-                    <Typography variant="h6" fontWeight="bold" sx={{ color: '#ed6c02' }}>
+                <Paper 
+                    elevation={emptyReports.courses ? 0 : 2} 
+                    sx={getCardStyle(emptyReports.courses)} 
+                    onClick={() => !emptyReports.courses && navigate('/report/courses')}
+                >
+                    <ClassIcon sx={{ fontSize: 60, color: emptyReports.courses ? 'text.disabled' : '#ed6c02', mb: 2 }} />
+                    <Typography variant="h6" fontWeight="bold" sx={{ color: emptyReports.courses ? 'text.disabled' : '#ed6c02' }}>
                         Cursos & Coordenações
                     </Typography>
                     <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                        Consulte os cursos cadastrados e seus respectivos coordenadores.
+                         {emptyReports.courses ? "Nenhum curso cadastrado." : "Consulte os cursos cadastrados e seus respectivos coordenadores."}
                     </Typography>
                 </Paper>
             </Grid>
 
-            {/* CARD 4: GESTÃO DE USUÁRIOS (Apenas Admin) */}
+            {/* CARD 4: GESTÃO DE USUÁRIOS (Admin) */}
             {user && user.role === 'admin' && (
               <Grid item xs={12} sm={6} md={4}>
-                  <Paper elevation={2} sx={cardStyle} onClick={() => navigate('/users')}>
-                      <PeopleIcon sx={{ fontSize: 60, color: '#d32f2f', mb: 2 }} /> {/* Vermelho */}
+                  <Paper elevation={2} sx={getCardStyle(false)} onClick={() => navigate('/users')}>
+                      <PeopleIcon sx={{ fontSize: 60, color: '#d32f2f', mb: 2 }} />
                       <Typography variant="h6" fontWeight="bold" sx={{ color: '#d32f2f' }}>
                           Usuários do Sistema
                       </Typography>
@@ -101,16 +181,19 @@ const Home = () => {
               </Grid>
             )}
 
-            {/* CARD 5: INDICADORES (Agora padronizado) */}
+            {/* CARD 5: INDICADORES */}
             <Grid item xs={12} sm={6} md={4}>
-                <Paper elevation={2} sx={cardStyle} onClick={() => navigate('/reports/indicators')}>
-                    {/* Usei AnalyticsIcon para diferenciar do Relatório Acadêmico, mas mantive a cor roxa */}
-                    <AnalyticsIcon sx={{ fontSize: 60, color: '#9c27b0', mb: 2 }} /> 
-                    <Typography variant="h6" fontWeight="bold" sx={{ color: '#9c27b0' }}>
+                <Paper 
+                    elevation={emptyReports.indicators ? 0 : 2} 
+                    sx={getCardStyle(emptyReports.indicators)} 
+                    onClick={() => !emptyReports.indicators && navigate('/reports/indicators')}
+                >
+                    <AnalyticsIcon sx={{ fontSize: 60, color: emptyReports.indicators ? 'text.disabled' : '#9c27b0', mb: 2 }} /> 
+                    <Typography variant="h6" fontWeight="bold" sx={{ color: emptyReports.indicators ? 'text.disabled' : '#9c27b0' }}>
                         Indicadores
                     </Typography>
                     <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                        Dashboard estratégico de retenção e risco.
+                        {emptyReports.indicators ? "Sem indicadores gerados." : "Dashboard estratégico de retenção e risco."}
                     </Typography>
                 </Paper>
             </Grid>

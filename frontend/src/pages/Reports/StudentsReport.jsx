@@ -123,22 +123,30 @@ const StudentsReport = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {students.map((s) => (
-                <TableRow key={s.ID} hover>
-                  <TableCell>{s.registration}</TableCell>
-                  <TableCell>{s.name}</TableCell>
-                  <TableCell>{s.course?.name}</TableCell>
-                  <TableCell>{s.entry_year} ({s.entry_period})</TableCell>
-                  <TableCell>{s.quota_type}</TableCell>
-                  <TableCell align="center">
-                    <Tooltip title="Ver Histórico Completo">
-                        <IconButton color="primary" onClick={() => navigate(`/students/${s.registration}`)}>
-                            <TimelineIcon />
-                        </IconButton>
-                    </Tooltip>
+              {students.length > 0 ? (
+                students.map((s) => (
+                  <TableRow key={s.ID} hover>
+                    <TableCell>{s.registration}</TableCell>
+                    <TableCell>{s.name}</TableCell>
+                    <TableCell>{s.course?.name}</TableCell>
+                    <TableCell>{s.entry_year} ({s.entry_period})</TableCell>
+                    <TableCell>{s.quota_type}</TableCell>
+                    <TableCell align="center">
+                      <Tooltip title="Ver Histórico Completo">
+                          <IconButton color="primary" onClick={() => navigate(`/students/${s.registration}`)}>
+                              <TimelineIcon />
+                          </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                    Nenhum registro encontrado.
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </TableContainer>

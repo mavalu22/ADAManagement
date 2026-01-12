@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'; // Adicionado useRef
+import React, { useEffect, useState, useRef } from 'react';
 import { 
   Box, Container, Paper, Typography, Table, TableBody, TableCell, 
   TableContainer, TableHead, TableRow, Grid, TextField, Button 
@@ -11,14 +11,14 @@ import api from '../../services/api';
 const CoursesReport = () => {
   const [courses, setCourses] = useState([]);
   
-  // 1. Refs para os campos (Performance)
+  // Refs para os campos (Performance)
   const codeRef = useRef(null);
   const nameRef = useRef(null);
 
   const fetchCourses = () => {
       const params = new URLSearchParams();
       
-      // 2. Leitura direta dos valores
+      // Leitura direta dos valores
       if (codeRef.current?.value) params.append('code', codeRef.current.value);
       if (nameRef.current?.value) params.append('name', nameRef.current.value);
 
@@ -30,7 +30,7 @@ const CoursesReport = () => {
      // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 3. Limpeza visual dos campos
+  // Limpeza visual dos campos
   const handleClear = () => {
       if (codeRef.current) codeRef.current.value = '';
       if (nameRef.current) nameRef.current.value = '';
@@ -49,7 +49,6 @@ const CoursesReport = () => {
 
             <Grid container spacing={2} alignItems="center">
                 <Grid item xs={12} sm={3}>
-                    {/* 4. Uso do inputRef */}
                     <TextField fullWidth label="Código" inputRef={codeRef} size="small" />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -72,13 +71,21 @@ const CoursesReport = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {courses.map((c) => (
-                <TableRow key={c.ID}>
-                  <TableCell>{c.code}</TableCell>
-                  <TableCell>{c.name}</TableCell>
-                  <TableCell>{c.coordinator}</TableCell>
+              {courses.length > 0 ? (
+                courses.map((c) => (
+                  <TableRow key={c.ID}>
+                    <TableCell>{c.code}</TableCell>
+                    <TableCell>{c.name}</TableCell>
+                    <TableCell>{c.coordinator}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={3} align="center" sx={{ py: 3 }}>
+                    Nenhum registro encontrado.
+                  </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </TableContainer>
