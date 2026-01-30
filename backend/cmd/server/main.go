@@ -16,26 +16,9 @@ import (
 )
 
 func main() {
-	// 1. Carregar Configurações (.env)
 	config.LoadConfig()
 
-	// 2. Inicializa Banco
-	database.InitDB()
-
-	// ==========================================================
-	// LIMPEZA TOTAL (RESET)
-	// ==========================================================
-	// Apaga a tabela de usuários existente para começar limpo.
-	// Se tiver outras tabelas no futuro (ex: Alunos), adicione aqui também.
-	log.Println("🧹 Limpando banco de dados...")
-	database.DB.Migrator().DropTable(&models.User{})
-	database.DB.Migrator().DropTable(&models.Course{})
-	database.DB.Migrator().DropTable(&models.Semester{})
-	database.DB.Migrator().DropTable(&models.Student{})
-	database.DB.Migrator().DropTable(&models.AcademicRecord{})
-	// ==========================================================
-
-	// Recria a tabela vazia
+	database.Connect()
 	err := database.DB.AutoMigrate(
 		&models.User{},
 		&models.Course{},
@@ -47,14 +30,15 @@ func main() {
 		log.Fatal("Erro na migração:", err)
 	}
 
-	// 3. Garante o Admin (Recria o admin pois o banco foi limpo)
 	services.EnsureAdmin()
 
-	// 4. Configura Gin
 	r := gin.Default()
 
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173"},
+		AllowOrigins: []string{
+			"http://localhost:5173",
+			"https://frontend-ada.onrender.com",
+		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -65,6 +49,10 @@ func main() {
 	routes.SetupRoutes(r)
 
 	port := config.AppConfig.Port
+	if port == "" {
+		port = "8080"
+	}
+
 	fmt.Printf("🚀 Servidor rodando na porta %s\n", port)
 	r.Run(":" + port)
 }
