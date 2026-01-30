@@ -25,12 +25,12 @@ func LoadConfig() {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			log.Println("Aviso: Arquivo .env não encontrado. Usando variáveis de ambiente do sistema.")
 		} else {
-			log.Fatal("Erro ao ler arquivo .env: ", err)
+			log.Println("Aviso: Erro ao tentar ler arquivo .env:", err)
 		}
 	}
 
 	AppConfig = &Config{}
 	if err := viper.Unmarshal(AppConfig); err != nil {
-		log.Fatal("Erro ao carregar configurações para a struct: ", err)
+		log.Fatal("Erro crítico ao carregar configurações: ", err)
 	}
 }
