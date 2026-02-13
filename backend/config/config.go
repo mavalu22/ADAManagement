@@ -7,7 +7,7 @@ import (
 )
 
 type Config struct {
-	DBPath        string `mapstructure:"DB_PATH"`
+	DatabaseURL   string `mapstructure:"DATABASE_URL"`
 	JWTSecret     string `mapstructure:"JWT_SECRET"`
 	AdminEmail    string `mapstructure:"ADMIN_EMAIL"`
 	AdminPassword string `mapstructure:"ADMIN_PASSWORD"`
@@ -21,12 +21,23 @@ func LoadConfig() {
 	viper.SetConfigFile(".env")
 	viper.AutomaticEnv()
 
+	_ = viper.BindEnv("DATABASE_URL")
+	_ = viper.BindEnv("JWT_SECRET")
+	_ = viper.BindEnv("PORT")
+	_ = viper.BindEnv("ADMIN_EMAIL")
+	_ = viper.BindEnv("ADMIN_PASSWORD")
+	_ = viper.BindEnv("ADMIN_NAME")
+
 	if err := viper.ReadInConfig(); err != nil {
-		log.Fatal("Erro ao ler arquivo .env: ", err)
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			log.Println("Aviso: Arquivo .env não encontrado. Usando variáveis de ambiente do sistema.")
+		} else {
+			log.Println("Aviso: Erro ao ler .env:", err)
+		}
 	}
 
 	AppConfig = &Config{}
 	if err := viper.Unmarshal(AppConfig); err != nil {
-		log.Fatal("Erro ao carregar configurações: ", err)
+		log.Fatal("Erro crítico ao carregar configurações: ", err)
 	}
 }
