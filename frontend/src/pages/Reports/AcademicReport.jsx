@@ -1,31 +1,42 @@
 import React, { useEffect, useState, useContext, useRef } from 'react';
-import { 
-  Box, Container, Paper, Typography, Table, TableBody, TableCell, 
+import {
+  Box, Container, Paper, Typography, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, LinearProgress,
-  Grid, TextField, MenuItem, Button
+  Grid, TextField, MenuItem, Button, IconButton, Tooltip
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
-import { useSearchParams } from 'react-router-dom'; // <--- IMPORTANTE
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 
 import Header from '../../components/Header';
 import api from '../../services/api';
 import { SemesterContext } from '../../context/SemesterContext';
 
 const AcademicReport = () => {
+  const navigate = useNavigate();
   const { selectedSemester, selectedSemesterCode } = useContext(SemesterContext);
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchParams, setSearchParams] = useSearchParams(); // Ler URL
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // Refs
+  // Lista de cursos para o select dinâmico
+  const [courses, setCourses] = useState([]);
+  const [selectedCourse, setSelectedCourse] = useState('');
+
+  // Refs para campos de texto
   const registrationRef = useRef(null);
   const studentNameRef = useRef(null);
-  const courseNameRef = useRef(null);
-  
-  // State do Select
-  // Inicializa o estado lendo a URL (para o clique do gráfico funcionar visualmente)
+
+  // State do Select de Status
   const [status, setStatus] = useState(searchParams.get('status') || '');
+
+  // Carrega cursos uma única vez ao montar o componente
+  useEffect(() => {
+    api.get('/reports/courses')
+       .then(res => setCourses(res.data))
+       .catch(err => console.error('Erro ao carregar cursos:', err));
+  }, []);
 
   const fetchRecords = () => {
     if (!selectedSemester) return;
@@ -33,7 +44,7 @@ const AcademicReport = () => {
 
     const params = new URLSearchParams();
     params.append('semester_id', selectedSemester);
-    
+
     // 1. Prioridade: Filtros da URL (Dashboard Actions)
     const mode = searchParams.get('mode');
     const maxPending = searchParams.get('max_pending');
@@ -41,14 +52,13 @@ const AcademicReport = () => {
 
     if (mode) params.append('mode', mode);
     if (maxPending) params.append('max_pending', maxPending);
-    
+
     // 2. Filtros Manuais (Inputs)
-    // Se tiver status na URL, usa ele, senão usa o do State local
-    const currentStatus = urlStatus || status; 
-    
+    const currentStatus = urlStatus || status;
+
     if (registrationRef.current?.value) params.append('registration', registrationRef.current.value);
     if (studentNameRef.current?.value) params.append('student_name', studentNameRef.current.value);
-    if (courseNameRef.current?.value) params.append('course_name', courseNameRef.current.value);
+    if (selectedCourse) params.append('course_name', selectedCourse);
     if (currentStatus) params.append('status', currentStatus);
 
     api.get(`/reports/records?${params.toString()}`)
@@ -58,20 +68,19 @@ const AcademicReport = () => {
   };
 
   useEffect(() => {
-    // Atualiza o state visual se a URL mudar (ex: navegação)
     const urlStatus = searchParams.get('status');
     if (urlStatus) setStatus(urlStatus);
-    
+
     fetchRecords();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSemester, searchParams]); // Recarrega se a URL mudar
+  }, [selectedSemester, searchParams]);
 
   const handleClear = () => {
     if(registrationRef.current) registrationRef.current.value = '';
     if(studentNameRef.current) studentNameRef.current.value = '';
-    if(courseNameRef.current) courseNameRef.current.value = '';
+    setSelectedCourse('');
     setStatus('');
-    setSearchParams({}); // Limpa a URL também
+    setSearchParams({});
   };
 
   // Texto dinâmico do título caso venha do dashboard
@@ -83,34 +92,44 @@ const AcademicReport = () => {
     <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
       <Header />
       <Container maxWidth="xl" sx={{ mt: 4 }}>
-        
+
         <Paper sx={{ p: 3, mb: 3 }}>
           <Typography variant="h5" color="primary" fontWeight="bold">
             {title}
           </Typography>
-          
+
           <Grid container spacing={2} sx={{ mt: 2 }} alignItems="center">
-            {/* Inputs continuam iguais */}
             <Grid item xs={12} sm={2}>
                 <TextField fullWidth label="Matrícula" inputRef={registrationRef} size="small" />
             </Grid>
             <Grid item xs={12} sm={3}>
                 <TextField fullWidth label="Aluno" inputRef={studentNameRef} size="small" />
             </Grid>
+
+            {/* Curso: select dinâmico populado da API */}
             <Grid item xs={12} sm={3}>
-                <TextField fullWidth label="Curso" inputRef={courseNameRef} size="small" />
+                <TextField
+                    select fullWidth label="Curso"
+                    value={selectedCourse}
+                    onChange={(e) => setSelectedCourse(e.target.value)}
+                    size="small"
+                >
+                    <MenuItem value="">Todos</MenuItem>
+                    {courses.map((c) => (
+                        <MenuItem key={c.ID} value={c.name}>{c.name}</MenuItem>
+                    ))}
+                </TextField>
             </Grid>
+
             <Grid item xs={12} sm={2}>
-                <TextField 
-                    select fullWidth label="Status" 
+                <TextField
+                    select fullWidth label="Status"
                     value={status}
                     onChange={(e) => {
                         setStatus(e.target.value);
-                        // Ao mudar manualmente, removemos filtros especiais da URL para evitar conflito
                         const newParams = new URLSearchParams(searchParams);
                         newParams.delete('mode');
                         newParams.delete('max_pending');
-                        // Atualiza o parametro status na URL
                         if(e.target.value) newParams.set('status', e.target.value);
                         else newParams.delete('status');
                         setSearchParams(newParams);
@@ -145,21 +164,23 @@ const AcademicReport = () => {
                 <TableCell><b>Detalhe</b></TableCell>
                 <TableCell align="center"><b>% Concluído</b></TableCell>
                 <TableCell align="center"><b>Materias Obrigatórias Pendentes</b></TableCell>
+                <TableCell align="center"><b>Ações</b></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {records.map((row) => {
                  const progress = row.total_hours > 0 ? (row.integralized_hours / row.total_hours) * 100 : 0;
+                 const isRegular = row.status === 'Em regularidade';
                  return (
                   <TableRow key={row.ID} hover>
                     <TableCell>{row.student?.registration}</TableCell>
                     <TableCell>{row.student?.name}</TableCell>
                     <TableCell>{row.student?.course?.name}</TableCell>
                     <TableCell>
-                        <Chip 
-                            label={row.status} 
-                            color={row.status === 'Em regularidade' ? 'success' : 'warning'} 
-                            size="small" 
+                        <Chip
+                            label={row.status}
+                            color={isRegular ? 'success' : 'warning'}
+                            size="small"
                         />
                     </TableCell>
                     <TableCell sx={{maxWidth: 200, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
@@ -167,11 +188,24 @@ const AcademicReport = () => {
                     </TableCell>
                     <TableCell align="center">{progress.toFixed(1)}%</TableCell>
                     <TableCell align="center">{row.pending_obligatory}</TableCell>
+                    <TableCell align="center">
+                        <Tooltip title={isRegular ? 'Aluno em regularidade' : 'Registrar Ação'}>
+                            <span>
+                                <IconButton
+                                    color="primary"
+                                    disabled={isRegular}
+                                    onClick={() => navigate(`/students/${row.student?.registration}/actions?semester_id=${selectedSemester}`)}
+                                >
+                                    <AssignmentIcon />
+                                </IconButton>
+                            </span>
+                        </Tooltip>
+                    </TableCell>
                   </TableRow>
                  )
               })}
               {records.length === 0 && !loading && (
-                  <TableRow><TableCell colSpan={7} align="center">Nenhum registro encontrado.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} align="center">Nenhum registro encontrado.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

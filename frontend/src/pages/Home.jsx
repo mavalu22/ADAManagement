@@ -12,6 +12,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import SchoolIcon from '@mui/icons-material/School';
 import ClassIcon from '@mui/icons-material/Class';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 
 const Home = () => {
   const navigate = useNavigate();
@@ -181,7 +182,22 @@ const Home = () => {
               </Grid>
             )}
 
-            {/* CARD 5: INDICADORES */}
+            {/* CARD 5: IMPORTAR DADOS (Admin) */}
+            {user && user.role === 'admin' && (
+              <Grid item xs={12} sm={6} md={4}>
+                  <Paper elevation={2} sx={getCardStyle(false)} onClick={() => navigate('/import')}>
+                      <UploadFileIcon sx={{ fontSize: 60, color: '#0288d1', mb: 2 }} />
+                      <Typography variant="h6" fontWeight="bold" sx={{ color: '#0288d1' }}>
+                          Importar Dados
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                          Faça upload de planilhas CSV/XLSX para atualizar a base de dados.
+                      </Typography>
+                  </Paper>
+              </Grid>
+            )}
+
+            {/* CARD 6: INDICADORES */}
             <Grid item xs={12} sm={6} md={4}>
                 <Paper 
                     elevation={emptyReports.indicators ? 0 : 2} 

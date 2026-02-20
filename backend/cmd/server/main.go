@@ -25,6 +25,7 @@ func main() {
 		&models.Semester{},
 		&models.Student{},
 		&models.AcademicRecord{},
+		&models.StudentAction{},
 	)
 	if err != nil {
 		log.Fatal("Erro na migração:", err)

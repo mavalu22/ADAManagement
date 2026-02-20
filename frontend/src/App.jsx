@@ -18,6 +18,7 @@ import AcademicReport from './pages/Reports/AcademicReport';
 import CoursesReport from './pages/Reports/CoursesReport';
 import StudentsReport from './pages/Reports/StudentsReport';
 import StudentProfile from './pages/StudentProfile';
+import StudentActions from './pages/StudentActions';
 import IndicatorsReport from './pages/Reports/IndicatorsReport';
 
 // React Toastify
@@ -102,6 +103,7 @@ function App() {
                 <Route path="/report/records" element={<PrivateRoute><AcademicReport /></PrivateRoute>} />
                 <Route path="/report/courses" element={<PrivateRoute><CoursesReport /></PrivateRoute>} />
                 <Route path="/report/students" element={<PrivateRoute><StudentsReport /></PrivateRoute>} />
+                <Route path="/students/:registration/actions" element={<PrivateRoute><StudentActions /></PrivateRoute>} />
                 <Route path="/students/:registration" element={<PrivateRoute><StudentProfile /></PrivateRoute>} />
                 <Route path="/reports/indicators" element={<PrivateRoute><IndicatorsReport /></PrivateRoute>} />
             

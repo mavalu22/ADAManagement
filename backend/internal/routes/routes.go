@@ -31,6 +31,11 @@ func SetupRoutes(r *gin.Engine) {
 			protected.GET("/reports/students", controllers.GetStudentsReportHandler)
 			protected.GET("/students/:registration/history", controllers.GetStudentHistoryHandler)
 			protected.GET("/reports/dashboard", controllers.GetDashboardIndicatorsHandler)
+			// Ações por Aluno
+			protected.GET("/students/:registration/actions", controllers.GetStudentActionsHandler)
+			protected.POST("/students/:registration/actions", controllers.CreateStudentActionHandler)
+			protected.PUT("/actions/:id", controllers.UpdateStudentActionHandler)
+			protected.DELETE("/actions/:id", controllers.DeleteStudentActionHandler)
 		}
 	}
 }

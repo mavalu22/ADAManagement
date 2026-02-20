@@ -80,7 +80,7 @@ const StudentsReport = () => {
                  <TextField fullWidth label="Nome" inputRef={nameRef} size="small" />
               </Grid>
               <Grid item xs={6} sm={2}>
-                 <TextField fullWidth label="Ano" type="number" inputRef={entryYearRef} size="small" />
+                 <TextField fullWidth label="Ano" type="number" inputRef={entryYearRef} size="small" defaultValue={new Date().getFullYear()} />
               </Grid>
               <Grid item xs={6} sm={2}>
                  {/* Select CONTROLADO por State */}
