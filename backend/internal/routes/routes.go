@@ -15,6 +15,8 @@ func SetupRoutes(r *gin.Engine) {
 		protected := api.Group("/")
 		protected.Use(middlewares.AuthMiddleware())
 		{
+			// Validação de sessão
+			protected.GET("/me", controllers.GetMeHandler)
 			// Cadastro de novos users (Só Admin)
 			protected.POST("/register", controllers.RegisterHandler)
 

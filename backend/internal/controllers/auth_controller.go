@@ -1,7 +1,9 @@
 package controllers
 
 import (
+	"adamanagement/backend/internal/models"
 	"adamanagement/backend/internal/services"
+	"adamanagement/backend/pkg/database"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -41,6 +43,24 @@ func LoginHandler(c *gin.Context) {
 			"email": user.Email,
 			"role":  user.Role,
 		},
+	})
+}
+
+func GetMeHandler(c *gin.Context) {
+	rawID, _ := c.Get("userID")
+	userIDFloat, _ := rawID.(float64)
+
+	var user models.User
+	if err := database.DB.Omit("password").First(&user, uint(userIDFloat)).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não encontrado"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":    user.ID,
+		"name":  user.Name,
+		"email": user.Email,
+		"role":  user.Role,
 	})
 }
 

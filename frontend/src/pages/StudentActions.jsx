@@ -274,77 +274,81 @@ const StudentActions = () => {
                   </TableRow>
                 )}
                 {actions.map((action) => (
-                  <TableRow key={action.ID} hover>
-                    {editingId === action.ID ? (
-                      /* Linha em modo de edição */
-                      <>
-                        <TableCell>
-                          <TextField
-                            type="date" size="small"
-                            value={editActionDate}
-                            onChange={(e) => setEditActionDate(e.target.value)}
-                            InputLabelProps={{ shrink: true }}
-                            sx={{ minWidth: 140 }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <TextField
-                            fullWidth multiline maxRows={4} size="small"
-                            value={editDescription}
-                            onChange={(e) => setEditDescription(e.target.value)}
-                            inputProps={{ maxLength: 500 }}
-                            helperText={`${editDescription.length}/500`}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <TextField
-                            type="date" size="small"
-                            value={editResponseDate}
-                            onChange={(e) => setEditResponseDate(e.target.value)}
-                            InputLabelProps={{ shrink: true }}
-                            sx={{ minWidth: 140 }}
-                          />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Tooltip title="Salvar">
-                            <IconButton color="primary" onClick={() => handleUpdate(action.ID)}>
-                              <SaveIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Cancelar">
-                            <IconButton onClick={cancelEdit}>
-                              <CancelIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </>
-                    ) : (
-                      /* Linha em modo de visualização */
-                      <>
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                          {formatDate(action.action_date)}
-                        </TableCell>
-                        <TableCell sx={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>
-                          {action.description}
-                        </TableCell>
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                          {formatDate(action.response_date)}
-                        </TableCell>
-                        <TableCell align="center">
-                          <Tooltip title="Editar">
-                            <IconButton color="primary" onClick={() => startEdit(action)}>
-                              <EditIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Remover">
-                            <IconButton color="error" onClick={() => handleDelete(action.ID)}>
-                              <DeleteIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </>
-                    )}
-                  </TableRow>
+                  editingId === action.ID ? (
+                    /* Linha em modo de edição — formulário full-width */
+                    <TableRow key={action.ID} sx={{ bgcolor: 'action.hover' }}>
+                      <TableCell colSpan={4} sx={{ py: 2, px: 3 }}>
+                        <Grid container spacing={2} alignItems="flex-start">
+                          <Grid item xs={12} sm={3}>
+                            <TextField
+                              fullWidth type="date" size="small" label="Data da Ação"
+                              value={editActionDate}
+                              onChange={(e) => setEditActionDate(e.target.value)}
+                              InputLabelProps={{ shrink: true }}
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={3}>
+                            <TextField
+                              fullWidth type="date" size="small" label="Resposta do Aluno"
+                              value={editResponseDate}
+                              onChange={(e) => setEditResponseDate(e.target.value)}
+                              InputLabelProps={{ shrink: true }}
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <TextField
+                              fullWidth multiline rows={3} size="small" label="Descrição"
+                              value={editDescription}
+                              onChange={(e) => setEditDescription(e.target.value)}
+                              inputProps={{ maxLength: 500 }}
+                              helperText={`${editDescription.length}/500`}
+                            />
+                          </Grid>
+                          <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                            <Button
+                              variant="outlined" size="small"
+                              startIcon={<CancelIcon />}
+                              onClick={cancelEdit}
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              variant="contained" size="small"
+                              startIcon={<SaveIcon />}
+                              onClick={() => handleUpdate(action.ID)}
+                            >
+                              Salvar
+                            </Button>
+                          </Grid>
+                        </Grid>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    /* Linha em modo de visualização */
+                    <TableRow key={action.ID} hover>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                        {formatDate(action.action_date)}
+                      </TableCell>
+                      <TableCell sx={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>
+                        {action.description}
+                      </TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                        {formatDate(action.response_date)}
+                      </TableCell>
+                      <TableCell align="center">
+                        <Tooltip title="Editar">
+                          <IconButton color="primary" onClick={() => startEdit(action)}>
+                            <EditIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Remover">
+                          <IconButton color="error" onClick={() => handleDelete(action.ID)}>
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  )
                 ))}
               </TableBody>
             </Table>

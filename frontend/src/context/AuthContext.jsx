@@ -8,15 +8,26 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Recupera dados ao recarregar a página
     const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
 
-    if (storedToken && storedUser) {
-        api.defaults.headers.Authorization = `Bearer ${storedToken}`;
-        setUser(JSON.parse(storedUser));
+    if (!storedToken) {
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    // Valida o token no backend e obtém dados frescos do usuário
+    api.get('/me')
+      .then((res) => {
+        setUser(res.data);
+      })
+      .catch(() => {
+        // Token inválido ou expirado — limpa sessão
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   const login = async (email, password) => {
@@ -26,16 +37,13 @@ export const AuthProvider = ({ children }) => {
     const { token, user: userData } = response.data;
     
     localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(userData)); // Salva nome/role
-    
-    api.defaults.headers.Authorization = `Bearer ${token}`;
+    localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
   };
 
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    api.defaults.headers.Authorization = undefined;
     setUser(null);
   };
 
