@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Box, Container, Grid, Paper, Typography, Chip, Button, 
@@ -58,7 +58,7 @@ const StudentProfile = () => {
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
         
         {/* CABEÇALHO DO ALUNO */}
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)} sx={{ mb: 2 }}>
+        <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)} sx={{ mb: 2 }}>
             Voltar
         </Button>
         
@@ -85,7 +85,7 @@ const StudentProfile = () => {
         <Grid container spacing={3}>
             {/* GRÁFICO 1: EVOLUÇÃO DA CARGA HORÁRIA (LINHA) */}
             <Grid item xs={12} md={8}>
-                <Paper sx={{ p: 6, height: 400 }}>
+                <Paper sx={{ p: 3, height: 400 }}>
                     <Typography variant="h6" gutterBottom color="primary">
                         Evolução da Integralização (Horas)
                     </Typography>
@@ -96,7 +96,7 @@ const StudentProfile = () => {
                             <YAxis tick={{ fill: chartAxisColor }} />
                             <RechartsTooltip contentStyle={tooltipStyle} />
                             <Legend />
-                            <Line type="monotone" dataKey="integralizada" stroke="#004b8d" strokeWidth={3} name="CH Cumprida" />
+                            <Line type="monotone" dataKey="integralizada" stroke="#10B981" strokeWidth={3} name="CH Cumprida" />
                         </LineChart>
                     </ResponsiveContainer>
                 </Paper>
@@ -114,7 +114,7 @@ const StudentProfile = () => {
                             <XAxis dataKey="name" tick={{ fill: chartAxisColor }} />
                             <YAxis tick={{ fill: chartAxisColor }} />
                             <RechartsTooltip contentStyle={tooltipStyle} />
-                            <Bar dataKey="pendente" fill="#d32f2f" name="Obrigatórias Faltantes" />
+                            <Bar dataKey="pendente" fill="#EF4444" name="Obrigatórias Faltantes" />
                         </BarChart>
                     </ResponsiveContainer>
                 </Paper>

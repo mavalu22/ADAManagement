@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from 'react';
+import { useEffect, useState, useContext } from 'react';
 import { 
   Box, Container, Grid, Paper, Typography, LinearProgress,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, 
@@ -19,7 +19,7 @@ import Header from '../../components/Header';
 import api from '../../services/api';
 import { SemesterContext } from '../../context/SemesterContext';
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF'];
+const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'];
 
 const IndicatorsReport = () => {
   const navigate = useNavigate();
@@ -83,9 +83,14 @@ const IndicatorsReport = () => {
       <Header />
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
         
-        <Typography variant="h4" color="primary" fontWeight="bold" gutterBottom align="center" sx={{ mb: 4 }}>
-          Painel de Indicadores - {selectedSemesterCode}
-        </Typography>
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h4" fontWeight={700} color="text.primary">
+            Painel de Indicadores
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            {selectedSemesterCode}
+          </Typography>
+        </Box>
 
         <Grid container spacing={3}>
             
@@ -112,7 +117,7 @@ const IndicatorsReport = () => {
                                 style={{ cursor: 'pointer' }}
                                 stroke={theme.palette.background.paper} // Borda da fatia na cor do fundo
                             >
-                                {data.status_distribution.map((entry, index) => (
+                                {data.status_distribution.map((_, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                             </Pie>

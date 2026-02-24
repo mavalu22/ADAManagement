@@ -1,5 +1,6 @@
-import React, { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { Box, Typography, Container, Grid, Paper } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import Header from '../components/Header';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
@@ -13,206 +14,217 @@ import SchoolIcon from '@mui/icons-material/School';
 import ClassIcon from '@mui/icons-material/Class';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+
+const ModuleCard = ({ icon: Icon, title, description, color, isEmpty, onClick }) => (
+  <Paper
+    elevation={0}
+    onClick={isEmpty ? undefined : onClick}
+    sx={{
+      p: 2.5,
+      height: '100%',
+      border: '1px solid',
+      borderColor: 'divider',
+      borderLeft: isEmpty ? '4px solid transparent' : `4px solid ${color}`,
+      borderRadius: 2,
+      cursor: isEmpty ? 'default' : 'pointer',
+      opacity: isEmpty ? 0.5 : 1,
+      pointerEvents: isEmpty ? 'none' : 'auto',
+      transition: 'all 0.2s ease',
+      '&:hover': {
+        transform: 'translateY(-2px)',
+        boxShadow: 3,
+        '& .card-arrow': {
+          opacity: 1,
+          transform: 'translateX(4px)',
+        },
+      },
+    }}
+  >
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+      {/* Ícone em container colorido */}
+      <Box
+        sx={{
+          p: 1.25,
+          borderRadius: 2,
+          bgcolor: isEmpty ? 'action.hover' : alpha(color, 0.1),
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <Icon sx={{ fontSize: 28, color: isEmpty ? 'text.disabled' : color }} />
+      </Box>
+
+      {/* Conteúdo */}
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography
+          variant="h6"
+          fontWeight={700}
+          sx={{ color: isEmpty ? 'text.disabled' : 'text.primary', lineHeight: 1.3, fontSize: '1rem' }}
+        >
+          {title}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.5 }}>
+          {description}
+        </Typography>
+      </Box>
+
+      {/* Seta */}
+      <ChevronRightIcon
+        className="card-arrow"
+        sx={{
+          color: 'text.disabled',
+          flexShrink: 0,
+          opacity: 0,
+          transition: 'all 0.2s ease',
+          mt: 0.25,
+        }}
+      />
+    </Box>
+  </Paper>
+);
 
 const Home = () => {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const { selectedSemester } = useContext(SemesterContext);
 
-  // Estado para controlar se os relatórios estão vazios
   const [emptyReports, setEmptyReports] = useState({
     records: false,
     students: false,
     courses: false,
-    indicators: false
+    indicators: false,
   });
 
   useEffect(() => {
     const checkDataAvailability = async () => {
-        // Variáveis temporárias para o novo estado
-        let isCoursesEmpty = false;
-        let isRecordsEmpty = true;    // Assume vazio por segurança se não tiver semestre
-        let isStudentsEmpty = true;
-        let isIndicatorsEmpty = true;
+      let isCoursesEmpty = false;
+      let isRecordsEmpty = true;
+      let isStudentsEmpty = true;
+      let isIndicatorsEmpty = true;
 
-        // 1. Checa Cursos (Independente de Semestre)
+      try {
+        const coursesRes = await api.get('/reports/courses');
+        isCoursesEmpty = !coursesRes.data || coursesRes.data.length === 0;
+      } catch {
+        isCoursesEmpty = true;
+      }
+
+      if (selectedSemester) {
         try {
-            const coursesRes = await api.get('/reports/courses');
-            isCoursesEmpty = !coursesRes.data || coursesRes.data.length === 0;
-        } catch (error) {
-            console.error("Erro ao verificar cursos:", error);
-            isCoursesEmpty = true; // Se der erro, bloqueia
+          const [recordsRes, studentsRes, indicatorsRes] = await Promise.all([
+            api.get(`/reports/records?semester_id=${selectedSemester}`),
+            api.get(`/reports/students?semester_id=${selectedSemester}`),
+            api.get(`/reports/dashboard?semester_id=${selectedSemester}`),
+          ]);
+          isRecordsEmpty = !recordsRes.data || recordsRes.data.length === 0;
+          isStudentsEmpty = !studentsRes.data || studentsRes.data.length === 0;
+          isIndicatorsEmpty =
+            !indicatorsRes.data?.status_distribution ||
+            indicatorsRes.data.status_distribution.length === 0;
+        } catch {
+          // mantém como vazio
         }
+      }
 
-        // 2. Checa Relatórios Dependentes de Semestre
-        if (selectedSemester) {
-            try {
-                const [recordsRes, studentsRes, indicatorsRes] = await Promise.all([
-                    api.get(`/reports/records?semester_id=${selectedSemester}`),
-                    api.get(`/reports/students?semester_id=${selectedSemester}`),
-                    api.get(`/reports/dashboard?semester_id=${selectedSemester}`)
-                ]);
-
-                isRecordsEmpty = !recordsRes.data || recordsRes.data.length === 0;
-                isStudentsEmpty = !studentsRes.data || studentsRes.data.length === 0;
-                
-                // Indicadores (verifica status_distribution)
-                isIndicatorsEmpty = !indicatorsRes.data?.status_distribution || 
-                                    indicatorsRes.data.status_distribution.length === 0;
-
-            } catch (error) {
-                console.error("Erro ao verificar relatórios por semestre:", error);
-                // Mantém como true (vazio) se a API falhar
-            }
-        }
-
-        // Atualiza o estado de uma vez
-        setEmptyReports({
-            courses: isCoursesEmpty,
-            records: isRecordsEmpty,
-            students: isStudentsEmpty,
-            indicators: isIndicatorsEmpty
-        });
+      setEmptyReports({
+        courses: isCoursesEmpty,
+        records: isRecordsEmpty,
+        students: isStudentsEmpty,
+        indicators: isIndicatorsEmpty,
+      });
     };
 
     checkDataAvailability();
   }, [selectedSemester]);
 
-  // Função geradora de estilo (dinâmico baseado se está vazio ou não)
-  const getCardStyle = (isEmpty) => ({
-    p: 3, 
-    textAlign: 'center', 
-    cursor: isEmpty ? 'default' : 'pointer',
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'transform 0.2s, box-shadow 0.2s',
-    
-    // Estilos visuais de "Desabilitado"
-    opacity: isEmpty ? 0.6 : 1,
-    bgcolor: isEmpty ? 'action.hover' : 'background.paper',
-    pointerEvents: isEmpty ? 'none' : 'auto',
-    
-    '&:hover': !isEmpty ? { 
-        bgcolor: 'background.paper',
-        transform: 'translateY(-5px)',
-        boxShadow: 6 
-    } : {}
-  });
-
   return (
     <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
       <Header />
-      
-      <Container sx={{ mt: 5 }}>
-        <Typography variant="h4" component="h1" gutterBottom color="primary.main" fontWeight="bold">
-          Painel Acadêmico
-        </Typography>
-        <Typography variant="body1" color="textSecondary" sx={{ mb: 4 }}>
-          Bem-vindo, {user?.name}. Acesse os módulos abaixo.
-        </Typography>
-        
-        <Grid container spacing={3}>
-            
-            {/* CARD 1: RELATÓRIO ACADÊMICO */}
+
+      <Container sx={{ mt: 5, mb: 6 }}>
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h4" fontWeight={700} color="text.primary">
+            Painel Acadêmico
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
+            Bem-vindo, {user?.name}. Selecione um módulo para continuar.
+          </Typography>
+        </Box>
+
+        <Grid container spacing={2.5}>
+
+          <Grid item xs={12} sm={6} md={4}>
+            <ModuleCard
+              icon={AssessmentIcon}
+              title="Relatório Acadêmico"
+              description="Visão detalhada de enquadramento, progressão e riscos de evasão."
+              color="#059669"
+              isEmpty={emptyReports.records}
+              onClick={() => navigate('/report/records')}
+            />
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={4}>
+            <ModuleCard
+              icon={SchoolIcon}
+              title="Base de Alunos"
+              description="Listagem de alunos ativos no semestre selecionado e seus dados de ingresso."
+              color="#0284C7"
+              isEmpty={emptyReports.students}
+              onClick={() => navigate('/report/students')}
+            />
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={4}>
+            <ModuleCard
+              icon={ClassIcon}
+              title="Cursos & Coordenações"
+              description="Consulte os cursos cadastrados e seus respectivos coordenadores."
+              color="#D97706"
+              isEmpty={emptyReports.courses}
+              onClick={() => navigate('/report/courses')}
+            />
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={4}>
+            <ModuleCard
+              icon={AnalyticsIcon}
+              title="Indicadores"
+              description="Dashboard estratégico de retenção, alunos críticos e próximos da formatura."
+              color="#7C3AED"
+              isEmpty={emptyReports.indicators}
+              onClick={() => navigate('/reports/indicators')}
+            />
+          </Grid>
+
+          {user?.role === 'admin' && (
             <Grid item xs={12} sm={6} md={4}>
-                <Paper 
-                    elevation={emptyReports.records ? 0 : 2} 
-                    sx={getCardStyle(emptyReports.records)} 
-                    onClick={() => !emptyReports.records && navigate('/report/records')}
-                >
-                    <AssessmentIcon sx={{ fontSize: 60, color: emptyReports.records ? 'text.disabled' : 'primary.main', mb: 2 }} />
-                    <Typography variant="h6" fontWeight="bold" color={emptyReports.records ? 'text.disabled' : 'primary'}>
-                        Relatório Acadêmico
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                        {emptyReports.records ? "Sem dados para este semestre." : "Visão detalhada de enquadramento, progressão e riscos de evasão."}
-                    </Typography>
-                </Paper>
+              <ModuleCard
+                icon={PeopleIcon}
+                title="Usuários do Sistema"
+                description="Administração de acessos, cadastro de novos admins e permissões."
+                color="#DC2626"
+                isEmpty={false}
+                onClick={() => navigate('/users')}
+              />
             </Grid>
+          )}
 
-            {/* CARD 2: ALUNOS */}
+          {user?.role === 'admin' && (
             <Grid item xs={12} sm={6} md={4}>
-                <Paper 
-                    elevation={emptyReports.students ? 0 : 2} 
-                    sx={getCardStyle(emptyReports.students)} 
-                    onClick={() => !emptyReports.students && navigate('/report/students')}
-                >
-                    <SchoolIcon sx={{ fontSize: 60, color: emptyReports.students ? 'text.disabled' : '#2e7d32', mb: 2 }} />
-                    <Typography variant="h6" fontWeight="bold" sx={{ color: emptyReports.students ? 'text.disabled' : '#2e7d32' }}>
-                        Base de Alunos
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                        {emptyReports.students ? "Nenhum aluno encontrado." : "Listagem de alunos ativos no semestre selecionado e seus dados de ingresso."}
-                    </Typography>
-                </Paper>
+              <ModuleCard
+                icon={UploadFileIcon}
+                title="Importar Dados"
+                description="Faça upload de planilhas CSV/XLSX para atualizar a base de dados."
+                color="#0891B2"
+                isEmpty={false}
+                onClick={() => navigate('/import')}
+              />
             </Grid>
-
-            {/* CARD 3: CURSOS */}
-            <Grid item xs={12} sm={6} md={4}>
-                <Paper 
-                    elevation={emptyReports.courses ? 0 : 2} 
-                    sx={getCardStyle(emptyReports.courses)} 
-                    onClick={() => !emptyReports.courses && navigate('/report/courses')}
-                >
-                    <ClassIcon sx={{ fontSize: 60, color: emptyReports.courses ? 'text.disabled' : '#ed6c02', mb: 2 }} />
-                    <Typography variant="h6" fontWeight="bold" sx={{ color: emptyReports.courses ? 'text.disabled' : '#ed6c02' }}>
-                        Cursos & Coordenações
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                         {emptyReports.courses ? "Nenhum curso cadastrado." : "Consulte os cursos cadastrados e seus respectivos coordenadores."}
-                    </Typography>
-                </Paper>
-            </Grid>
-
-            {/* CARD 4: GESTÃO DE USUÁRIOS (Admin) */}
-            {user && user.role === 'admin' && (
-              <Grid item xs={12} sm={6} md={4}>
-                  <Paper elevation={2} sx={getCardStyle(false)} onClick={() => navigate('/users')}>
-                      <PeopleIcon sx={{ fontSize: 60, color: '#d32f2f', mb: 2 }} />
-                      <Typography variant="h6" fontWeight="bold" sx={{ color: '#d32f2f' }}>
-                          Usuários do Sistema
-                      </Typography>
-                      <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                          Administração de acessos, cadastro de novos admins e permissões.
-                      </Typography>
-                  </Paper>
-              </Grid>
-            )}
-
-            {/* CARD 5: IMPORTAR DADOS (Admin) */}
-            {user && user.role === 'admin' && (
-              <Grid item xs={12} sm={6} md={4}>
-                  <Paper elevation={2} sx={getCardStyle(false)} onClick={() => navigate('/import')}>
-                      <UploadFileIcon sx={{ fontSize: 60, color: '#0288d1', mb: 2 }} />
-                      <Typography variant="h6" fontWeight="bold" sx={{ color: '#0288d1' }}>
-                          Importar Dados
-                      </Typography>
-                      <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                          Faça upload de planilhas CSV/XLSX para atualizar a base de dados.
-                      </Typography>
-                  </Paper>
-              </Grid>
-            )}
-
-            {/* CARD 6: INDICADORES */}
-            <Grid item xs={12} sm={6} md={4}>
-                <Paper 
-                    elevation={emptyReports.indicators ? 0 : 2} 
-                    sx={getCardStyle(emptyReports.indicators)} 
-                    onClick={() => !emptyReports.indicators && navigate('/reports/indicators')}
-                >
-                    <AnalyticsIcon sx={{ fontSize: 60, color: emptyReports.indicators ? 'text.disabled' : '#9c27b0', mb: 2 }} /> 
-                    <Typography variant="h6" fontWeight="bold" sx={{ color: emptyReports.indicators ? 'text.disabled' : '#9c27b0' }}>
-                        Indicadores
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                        {emptyReports.indicators ? "Sem indicadores gerados." : "Dashboard estratégico de retenção e risco."}
-                    </Typography>
-                </Paper>
-            </Grid>
+          )}
 
         </Grid>
       </Container>

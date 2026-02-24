@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useRef } from 'react';
+import { useEffect, useState, useContext, useRef } from 'react';
 import {
   Box, Container, Paper, Typography, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, LinearProgress,
@@ -7,6 +7,7 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import AssignmentIcon from '@mui/icons-material/Assignment';
+import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
 import Header from '../../components/Header';
@@ -93,12 +94,24 @@ const AcademicReport = () => {
       <Header />
       <Container maxWidth="xl" sx={{ mt: 4 }}>
 
-        <Paper sx={{ p: 3, mb: 3 }}>
-          <Typography variant="h5" color="primary" fontWeight="bold">
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h5" fontWeight={700} color="text.primary">
             {title}
           </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            {records.length} {records.length === 1 ? 'registro' : 'registros'} encontrados
+          </Typography>
+        </Box>
 
-          <Grid container spacing={2} sx={{ mt: 2 }} alignItems="center">
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <FilterAltIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+            <Typography variant="caption" fontWeight={700} sx={{ color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Filtros
+            </Typography>
+          </Box>
+
+          <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} sm={2}>
                 <TextField fullWidth label="Matrícula" inputRef={registrationRef} size="small" />
             </Grid>
@@ -106,7 +119,6 @@ const AcademicReport = () => {
                 <TextField fullWidth label="Aluno" inputRef={studentNameRef} size="small" />
             </Grid>
 
-            {/* Curso: select dinâmico populado da API */}
             <Grid item xs={12} sm={3}>
                 <TextField
                     select fullWidth label="Curso"
@@ -144,9 +156,9 @@ const AcademicReport = () => {
                     <MenuItem value="Desligamento">Desligamento</MenuItem>
                 </TextField>
             </Grid>
-            <Grid item xs={12} sm={2} sx={{display:'flex', gap: 1}}>
-                <Button variant="contained" onClick={fetchRecords}><SearchIcon/></Button>
-                <Button variant="outlined" onClick={handleClear}><ClearIcon/></Button>
+            <Grid item xs={12} sm={2} sx={{ display: 'flex', gap: 1 }}>
+                <Button variant="contained" startIcon={<SearchIcon />} onClick={fetchRecords}>Buscar</Button>
+                <Button variant="outlined" startIcon={<ClearIcon />} onClick={handleClear}>Limpar</Button>
             </Grid>
           </Grid>
         </Paper>

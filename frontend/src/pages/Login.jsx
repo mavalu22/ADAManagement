@@ -1,12 +1,12 @@
-import React, { useState, useContext } from 'react';
-import { 
-  Box, 
-  Button, 
-  Container, 
-  TextField, 
-  Typography, 
-  Paper, 
-  Alert 
+import { useState, useContext } from 'react';
+import {
+  Box,
+  Button,
+  Container,
+  TextField,
+  Typography,
+  Paper,
+  Alert,
 } from '@mui/material';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -15,7 +15,7 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  
+
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
 
@@ -25,7 +25,7 @@ const Login = () => {
     try {
       await login(email, password);
       navigate('/home');
-    } catch (err) {
+    } catch {
       setError('Credenciais inválidas. Tente novamente.');
     }
   };
@@ -41,32 +41,43 @@ const Login = () => {
       }}
     >
       <Container maxWidth="xs">
-        <Paper 
-          elevation={3} 
-          sx={{ 
-            p: 4, 
-            display: 'flex', 
-            flexDirection: 'column', 
+        <Paper
+          elevation={0}
+          sx={{
+            p: 5,
+            display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
-            borderRadius: 3
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 3,
           }}
         >
-          {/* Logo ou Título Minimalista */}
-          <Typography component="h1" variant="h5" color="primary" sx={{ mb: 1, fontWeight: 'bold' }}>
-            Login
+          <Box
+            component="img"
+            src="/ufes-logo.png"
+            alt="Logo UFES"
+            sx={{ height: 52, mb: 3 }}
+          />
+
+          <Typography component="h1" variant="h5" fontWeight={700} color="text.primary" sx={{ mb: 0.5 }}>
+            Bem-vindo
           </Typography>
-          <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-            Acesso Acadêmico
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Sistema de Acompanhamento Discente
           </Typography>
 
-          {error && <Alert severity="error" sx={{ width: '100%', mb: 2 }}>{error}</Alert>}
+          {error && (
+            <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
+              {error}
+            </Alert>
+          )}
 
-          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%' }}>
+          <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
             <TextField
               margin="normal"
               required
               fullWidth
-              id="email"
               label="E-mail Institucional"
               name="email"
               autoComplete="email"
@@ -81,7 +92,6 @@ const Login = () => {
               name="password"
               label="Senha"
               type="password"
-              id="password"
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -90,7 +100,8 @@ const Login = () => {
               type="submit"
               fullWidth
               variant="contained"
-              sx={{ mt: 3, mb: 2, py: 1.5 }}
+              size="large"
+              sx={{ mt: 3, mb: 1, py: 1.5 }}
             >
               Entrar
             </Button>
