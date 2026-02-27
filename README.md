@@ -380,21 +380,6 @@ Authorization: Bearer <token>
 | POST | `/api/students/:registration/actions` | Admin | Registrar nova ação |
 | PUT | `/api/actions/:id` | Admin | Editar ação |
 | DELETE | `/api/actions/:id` | Admin | Excluir ação |
-
----
-
-## Deploy
-
-O projeto é hospedado inteiramente no **Render.com** com deploy automático via GitHub.
-
-| Serviço | Plataforma | URL |
-|---|---|---|
-| Backend | Render Web Service (Go) | `https://ada-backend.onrender.com` |
-| Frontend | Render Static Site | `https://frontend-ada.onrender.com` |
-| Banco de Dados | Aiven PostgreSQL | Gerenciado na nuvem |
-
-> O arquivo `frontend/public/_redirects` contém a regra `/* /index.html 200`, necessária para que o roteamento client-side do React funcione ao recarregar ou acessar diretamente uma rota no Render.
-
 ---
 
 ## Autor
