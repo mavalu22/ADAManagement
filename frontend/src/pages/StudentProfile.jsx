@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  Box, Container, Grid, Paper, Typography, Chip, Button, 
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, LinearProgress 
+import {
+  Box, Container, Grid, Paper, Typography, Chip, Button,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, LinearProgress
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles'; // <--- Hook do tema
+import { useTheme } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import Header from '../components/Header';
@@ -13,7 +13,7 @@ import api from '../services/api';
 const StudentProfile = () => {
   const { registration } = useParams();
   const navigate = useNavigate();
-  const theme = useTheme(); // <--- Inicializa o tema
+  const theme = useTheme();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -42,7 +42,6 @@ const StudentProfile = () => {
     status: rec.status
   }));
 
-  // Estilos dinâmicos para gráficos
   const chartAxisColor = theme.palette.text.secondary;
   const chartGridColor = theme.palette.divider;
   const tooltipStyle = {
@@ -56,12 +55,11 @@ const StudentProfile = () => {
     <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
       <Header />
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-        
-        {/* CABEÇALHO DO ALUNO */}
+
         <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)} sx={{ mb: 2 }}>
             Voltar
         </Button>
-        
+
         <Paper elevation={3} sx={{ p: 4, mb: 4, borderLeft: '6px solid', borderLeftColor: 'primary.main' }}>
             <Grid container spacing={2}>
                 <Grid item xs={12} md={8}>
@@ -83,7 +81,6 @@ const StudentProfile = () => {
         </Paper>
 
         <Grid container spacing={3}>
-            {/* GRÁFICO 1: EVOLUÇÃO DA CARGA HORÁRIA (LINHA) */}
             <Grid item xs={12} md={8}>
                 <Paper sx={{ p: 3, height: 400 }}>
                     <Typography variant="h6" gutterBottom color="primary">
@@ -102,7 +99,6 @@ const StudentProfile = () => {
                 </Paper>
             </Grid>
 
-            {/* GRÁFICO 2: PENDÊNCIAS (BARRAS) */}
             <Grid item xs={12} md={4}>
                 <Paper sx={{ p: 3, height: 400 }}>
                     <Typography variant="h6" gutterBottom color="error">
@@ -120,7 +116,6 @@ const StudentProfile = () => {
                 </Paper>
             </Grid>
 
-            {/* TABELA: TIMELINE DETALHADA */}
             <Grid item xs={12}>
                 <Paper sx={{ p: 3 }}>
                     <Typography variant="h6" gutterBottom fontWeight="bold">
@@ -142,10 +137,10 @@ const StudentProfile = () => {
                                     <TableRow key={rec.ID} hover>
                                         <TableCell><b>{rec.semester.code}</b></TableCell>
                                         <TableCell>
-                                            <Chip 
-                                                label={rec.status} 
+                                            <Chip
+                                                label={rec.status}
                                                 color={rec.status === 'Em regularidade' ? 'success' : 'warning'}
-                                                variant={rec.status === 'Desligamento' ? 'filled' : 'outlined'} 
+                                                variant={rec.status === 'Desligamento' ? 'filled' : 'outlined'}
                                             />
                                         </TableCell>
                                         <TableCell>{rec.status_detail}</TableCell>

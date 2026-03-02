@@ -19,28 +19,24 @@ const StudentsReport = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // REFS para Textos (Performance)
   const registrationRef = useRef(null);
   const nameRef = useRef(null);
   const entryYearRef = useRef(null);
-  
-  // STATE para Select (Para funcionar o Limpar visualmente)
-  const [quotaType, setQuotaType] = useState(''); 
+
+  const [quotaType, setQuotaType] = useState('');
 
   const fetchStudents = () => {
     if (!selectedSemester) return;
 
     setLoading(true);
     const params = new URLSearchParams();
-    
+
     params.append('semester_id', selectedSemester);
 
-    // Refs
     if (registrationRef.current?.value) params.append('registration', registrationRef.current.value);
     if (nameRef.current?.value) params.append('name', nameRef.current.value);
     if (entryYearRef.current?.value) params.append('entry_year', entryYearRef.current.value);
-    
-    // State
+
     if (quotaType) params.append('quota_type', quotaType);
 
     api.get(`/reports/students?${params.toString()}`)
@@ -51,16 +47,13 @@ const StudentsReport = () => {
 
   useEffect(() => {
     fetchStudents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSemester]); 
+  }, [selectedSemester]);
 
   const handleClear = () => {
-    // Limpa Refs
     if(registrationRef.current) registrationRef.current.value = '';
     if(nameRef.current) nameRef.current.value = '';
     if(entryYearRef.current) entryYearRef.current.value = '';
-    
-    // Limpa State do Select
+
     setQuotaType('');
   };
 
@@ -120,7 +113,7 @@ const StudentsReport = () => {
             </Grid>
           </Grid>
         </Paper>
-        
+
         {loading && <LinearProgress sx={{ mb: 2 }} />}
 
         <TableContainer component={Paper}>

@@ -1,0 +1,1178 @@
+================================================================================
+  ADAMANAGEMENT — SISTEMA DE ACOMPANHAMENTO DISCENTE
+  Documentação Técnica para Trabalho de Conclusão de Curso
+  Ciência da Computação — UFES (Universidade Federal do Espírito Santo)
+================================================================================
+
+Data de geração: 26/02/2026
+Versão do sistema: 1.0 (produção)
+
+
+================================================================================
+1. VISÃO GERAL DO SISTEMA
+================================================================================
+
+1.1 Descrição
+-------------
+O ADAManagement é um sistema web de acompanhamento discente desenvolvido para a
+Universidade Federal do Espírito Santo (UFES). O sistema permite que coordenadores
+de curso e servidores responsáveis pelo acompanhamento acadêmico monitorem a
+situação de estudantes de graduação de maneira centralizada, substituindo processos
+manuais baseados em planilhas por uma interface web interativa com relatórios,
+filtros, indicadores e histórico por aluno.
+
+1.2 Problema Resolvido
+----------------------
+Antes do sistema, o fluxo de trabalho típico consistia em:
+  - Exportar manualmente relatórios do sistema institucional (formato CSV/XLSX)
+  - Abrir e analisar planilhas individualmente em Excel
+  - Identificar alunos críticos por inspeção visual
+  - Registrar intervenções em documentos avulsos ou e-mails
+  - Reprocessar tudo a cada novo semestre letivo
+
+O ADAManagement centraliza todo esse processo em uma aplicação web acessível por
+múltiplos usuários simultaneamente, com importação automatizada de dados, filtros
+dinâmicos e visualização por gráficos.
+
+1.3 Contexto Institucional
+--------------------------
+A UFES possui múltiplos cursos de graduação distribuídos em diferentes coordenações.
+Cada curso tem um coordenador responsável pelo acompanhamento dos alunos enquadrados
+em programas especiais (PAE, PIC) ou em situação crítica (bloqueio, desligamento).
+O sistema reflete exatamente essa estrutura, agrupando alunos por curso e semestre.
+
+1.4 Perfis de Usuário
+---------------------
+O sistema possui controle de acesso baseado em papéis (RBAC) com três níveis:
+
+  [ADMIN MASTER]
+  - ID fixo igual a 1 no banco de dados
+  - Não pode ser deletado nem rebaixado (proteção de sistema)
+  - Acesso irrestrito a todas as funcionalidades
+  - Responsável pela gestão inicial da plataforma
+
+  [ADMINISTRADOR (admin)]
+  - Criado pelo Admin Master ou por outro administrador
+  - Importa dados dos semestres letivos (CSV/XLSX)
+  - Cadastra e gerencia usuários do sistema
+  - Acesso a todos os relatórios e funcionalidades
+
+  [USUÁRIO COMUM (user)]
+  - Papel padrão atribuído a novos cadastros
+  - Acesso somente leitura nos relatórios
+  - Pode registrar e editar ações de acompanhamento
+  - Não pode importar dados nem gerenciar usuários
+
+
+================================================================================
+2. CASOS DE USO
+================================================================================
+
+UC01 — AUTENTICAÇÃO DE USUÁRIO
+-------------------------------
+Ator: Qualquer usuário (admin ou user)
+Pré-condição: Usuário cadastrado no sistema
+Fluxo Principal:
+  1. Usuário acessa a URL do sistema
+  2. Sistema exibe tela de login com campos e-mail e senha
+  3. Usuário preenche as credenciais e clica em "Entrar"
+  4. Sistema valida as credenciais via API (POST /api/login)
+  5. Backend verifica a senha com BCrypt e gera token JWT (24h de validade)
+  6. Frontend armazena o token no localStorage do navegador
+  7. Usuário é redirecionado para a página inicial (Home)
+Fluxo Alternativo — Credenciais Inválidas:
+  3a. Sistema exibe mensagem de erro "Credenciais inválidas"
+Fluxo Alternativo — Sessão Expirada:
+  7a. Ao recarregar a página, o sistema valida o token via GET /api/me
+  7b. Se inválido/expirado, token é removido e usuário é redirecionado ao login
+Pós-condição: Usuário autenticado com sessão ativa de 24 horas
+
+
+UC02 — GERENCIAMENTO DE USUÁRIOS
+----------------------------------
+Ator: Administrador
+Pré-condição: Usuário autenticado com papel "admin"
+Funcionalidades:
+  [Cadastrar Usuário]
+  1. Admin acessa "Cadastrar Usuário" no menu
+  2. Preenche nome, e-mail e senha
+  3. Sistema cria usuário com papel padrão "user"
+  4. Confirmação via notificação (toast) de sucesso
+
+  [Listar e Filtrar Usuários]
+  1. Admin acessa "Usuários do Sistema"
+  2. Sistema lista todos os usuários cadastrados
+  3. Admin pode filtrar por nome, e-mail ou papel (admin/user)
+  4. Resultados atualizados ao clicar em "Buscar"
+
+  [Promover/Rebaixar Usuário]
+  1. Admin alterna o Switch na linha do usuário
+  2. Sistema atualiza o papel via API (PUT /api/users/:id)
+  3. Restrições: Admin Master (ID=1) não pode ser rebaixado
+
+  [Deletar Usuário]
+  1. Admin clica no ícone de exclusão
+  2. Sistema remove o usuário
+  3. Restrições: Admin Master não pode ser excluído; usuário não pode se excluir
+Pós-condição: Base de usuários atualizada
+
+
+UC03 — IMPORTAÇÃO DE DADOS ACADÊMICOS
+----------------------------------------
+Ator: Administrador
+Pré-condição: Arquivo CSV ou XLSX exportado do sistema institucional da UFES
+Fluxo Principal:
+  1. Admin acessa "Importar Dados" no menu
+  2. Clica em "Escolher Arquivo" e seleciona o arquivo (.csv ou .xlsx)
+  3. Sistema exibe o nome do arquivo selecionado
+  4. Admin clica em "Importar Planilha"
+  5. Sistema exibe barra de progresso com três estágios:
+     - Enviando arquivo... (0–40%)
+     - Processando dados... (40–88%)
+     - Concluindo importação... (88–100%)
+  6. Backend processa as linhas do arquivo:
+     - Cria/atualiza Cursos
+     - Cria/atualiza Semestres
+     - Cria/atualiza Alunos
+     - Cria/atualiza Registros Acadêmicos
+  7. Sistema exibe notificação de sucesso
+  8. Lista de semestres é atualizada automaticamente
+Fluxo Alternativo — Formato Inválido:
+  6a. Sistema exibe notificação de erro com orientação de verificar o formato
+Colunas esperadas no arquivo (nomenclatura UFES):
+  - PERIODO_BASE_ENQUADRAMENTO → Semestre letivo
+  - COD_CURSO                  → Código do curso
+  - NOME_CURSO                 → Nome do curso
+  - COORDENADOR_CURSO          → Nome do coordenador
+  - MATR_ALUNO                 → Matrícula do aluno
+  - NOME_ALUNO                 → Nome do aluno
+  - ANO_INGRESSO               → Ano de ingresso
+  - PERIODO_INGRESSO           → Período de ingresso (1 ou 2)
+  - TIPO_COTA_INGRESSO         → Modalidade de cota
+  - ENQUADRAMENTO              → Situação acadêmica
+  - ACOMPANHAMENTO_ENQUADRAMENTO → Detalhe da situação
+  - CH_INTEGRALIZADA           → Carga horária integralizada
+  - CH_TOTAL_DISCIPLINAS_CONTAR → Carga horária total exigida
+  - NUM_DISC_OBR_FALTANTES     → Disciplinas obrigatórias pendentes
+  - NUM_SEMESTRES_SEM_CH       → Semestres sem carga horária
+  - NUM_TRANCAMENTOS           → Quantidade de trancamentos
+Pós-condição: Dados do semestre disponíveis para consulta nos relatórios
+
+
+UC04 — CONSULTA DE RELATÓRIO ACADÊMICO
+-----------------------------------------
+Ator: Qualquer usuário autenticado
+Pré-condição: Dados importados para o semestre selecionado
+Fluxo Principal:
+  1. Usuário acessa "Relatório Acadêmico" na Home
+  2. Sistema carrega os registros do semestre global selecionado
+  3. Usuário pode aplicar filtros:
+     - Matrícula (campo de texto)
+     - Nome do aluno (campo de texto)
+     - Curso (seleção)
+     - Situação acadêmica (seleção)
+  4. Usuário clica em "Buscar" para aplicar filtros
+  5. Sistema exibe tabela com: matrícula, nome, curso, situação, detalhe,
+     % de conclusão, disciplinas pendentes e botão de ação
+  6. Usuário pode navegar para ações do aluno pelo botão na linha
+Modos Especiais (via parâmetro de URL):
+  - ?mode=critical     → Filtra apenas alunos críticos (locks > 1 OU sem CH > 1)
+  - ?max_pending=6     → Filtra alunos próximos da formatura (pendentes ≤ 6)
+  - ?status=PAE        → Filtra por situação acadêmica específica
+Pós-condição: Tabela exibida com os registros filtrados
+
+
+UC05 — CONSULTA DE BASE DE ALUNOS
+------------------------------------
+Ator: Qualquer usuário autenticado
+Pré-condição: Dados importados
+Filtros disponíveis:
+  - Matrícula (texto)
+  - Nome (texto)
+  - Ano de ingresso (número, padrão: ano atual)
+  - Tipo de cota de ingresso (seleção)
+Colunas exibidas: Matrícula, Nome, Curso, Ano de Ingresso, Cota, Ação (histórico)
+Funcionalidade adicional: Botão de ícone leva ao histórico completo do aluno
+
+
+UC06 — CONSULTA DE CURSOS E COORDENAÇÕES
+-------------------------------------------
+Ator: Qualquer usuário autenticado
+Pré-condição: Dados importados
+Filtros disponíveis:
+  - Código do curso (texto)
+  - Nome do curso (texto)
+Colunas exibidas: Código, Nome, Coordenador
+Observação: Sem dependência de semestre (cursos são entidades estáticas)
+
+
+UC07 — VISUALIZAÇÃO DE INDICADORES (DASHBOARD)
+-------------------------------------------------
+Ator: Qualquer usuário autenticado
+Pré-condição: Dados importados para o semestre selecionado
+Componentes do Dashboard:
+
+  [Gráfico de Distribuição de Status]
+  - Gráfico de pizza (donut) com contagem de alunos por situação acadêmica
+  - Cores distintas por categoria
+  - Clicável: ao clicar em uma fatia, redireciona para o Relatório Acadêmico
+    filtrado pela situação correspondente
+
+  [Tabela de Alunos em Situação Crítica]
+  - Critério: locks > 1 OU semestres_sem_ch > 1 E status = "Em regularidade"
+  - Exibe: matrícula, nome, trancamentos, semestres sem CH
+  - Botão "Ver Todos" redireciona para Relatório Acadêmico (?mode=critical)
+
+  [Tabela de Próximos da Formatura]
+  - Critério: disciplinas_obrigatórias_pendentes ≤ 6 E status = "Em regularidade"
+  - Ordenados por pendentes (menor primeiro)
+  - Botão "Ver Relatório Completo" redireciona (?max_pending=6)
+
+Dados obtidos via: GET /api/reports/dashboard?semester_id={id}
+
+
+UC08 — VISUALIZAÇÃO DO HISTÓRICO INDIVIDUAL DO ALUNO
+------------------------------------------------------
+Ator: Qualquer usuário autenticado
+Pré-condição: Aluno existe na base de dados
+Fluxo:
+  1. Usuário clica no ícone de histórico na base de alunos ou no relatório
+  2. Sistema carrega perfil e histórico completo do aluno
+  3. Tela exibe:
+     - Dados cadastrais (matrícula, nome, curso, ano/período de ingresso, cota)
+     - Gráfico de linha: evolução da carga horária integralizada por semestre
+     - Gráfico de barras: disciplinas obrigatórias pendentes por semestre
+     - Tabela completa: todos os registros acadêmicos semestre a semestre
+  4. Botão "Voltar" retorna ao relatório anterior
+Dados obtidos via: GET /api/students/:matricula/history
+
+
+UC09 — REGISTRO E GERENCIAMENTO DE AÇÕES DE ACOMPANHAMENTO
+-------------------------------------------------------------
+Ator: Qualquer usuário autenticado
+Pré-condição: Aluno com situação diferente de "Em regularidade" no semestre
+Funcionalidades:
+  [Registrar Ação]
+  - Data da ação (obrigatória, padrão: hoje)
+  - Descrição da intervenção (obrigatória, máx. 500 caracteres)
+  - Data de resposta do aluno (opcional)
+  - Regra: não é possível criar ação para aluno em regularidade
+
+  [Listar Ações]
+  - Exibe todas as intervenções registradas para o aluno no semestre
+  - Ordenadas por data (mais recente primeiro)
+  - Exibe: data, descrição, data de resposta e botões de edição/exclusão
+
+  [Editar Ação]
+  - Modo de edição inline na tabela
+  - Campos editáveis: data, descrição, data de resposta
+
+  [Excluir Ação]
+  - Soft delete (registro mantido no banco com data de exclusão)
+
+Rotas da API:
+  GET    /api/students/:matricula/actions?semester_id={id}
+  POST   /api/students/:matricula/actions
+  PUT    /api/actions/:id
+  DELETE /api/actions/:id
+
+
+UC10 — SELEÇÃO GLOBAL DE SEMESTRE LETIVO
+------------------------------------------
+Ator: Qualquer usuário autenticado
+Componente: Seletor no cabeçalho (Header), sempre visível
+Comportamento:
+  - Ao selecionar um semestre, todos os relatórios são filtrados para esse período
+  - O semestre mais recente é selecionado automaticamente ao entrar no sistema
+  - Novo semestre aparece automaticamente após uma importação bem-sucedida
+  - O contexto de semestre é compartilhado globalmente via SemesterContext
+
+
+UC11 — ALTERNÂNCIA DE TEMA (CLARO / ESCURO)
+---------------------------------------------
+Ator: Qualquer usuário autenticado
+Componente: Switch no menu do usuário (ícone de avatar no cabeçalho)
+Comportamento:
+  - Alterna entre tema claro (fundo verde esmeralda claro) e escuro (fundo verde-preto)
+  - Preferência salva no localStorage do navegador (persiste entre sessões)
+  - Todos os componentes da aplicação respondem ao tema via tokens MUI
+
+
+UC12 — EDIÇÃO DE PERFIL DE USUÁRIO
+-------------------------------------
+Ator: Qualquer usuário autenticado
+Acesso: Menu do avatar → "Meu Perfil"
+Campos editáveis:
+  - Nome completo
+  - E-mail
+  - Senha (opcional; se não preenchido, mantém a senha atual)
+Comportamento: Atualização via PUT /api/users/:id; confirmação por toast
+
+
+================================================================================
+3. FUNCIONALIDADES DETALHADAS
+================================================================================
+
+3.1 Sistema de Autenticação JWT
+---------------------------------
+- Login com e-mail e senha
+- Senha armazenada com hash BCrypt (custo 10) — nunca em texto puro
+- Token JWT gerado com algoritmo HS256, expiração em 24 horas
+- Token armazenado no localStorage do navegador
+- Todas as requisições protegidas incluem o token no header Authorization
+- Interceptor Axios injeta o token automaticamente em toda requisição
+- Validação do token no carregamento da aplicação (GET /api/me)
+- Redirecionamento automático para login se token ausente ou expirado
+
+3.2 Importação de Planilhas Institucionais
+--------------------------------------------
+- Suporte a arquivos CSV (delimitador ponto-e-vírgula) e XLSX
+- Parser CSV: biblioteca padrão Go com opção LazyQuotes (tolerante a aspas)
+- Parser XLSX: biblioteca Excelize (lê a primeira aba da planilha)
+- Mapeamento de colunas por nome (case-insensitive, tolerante a espaços)
+- Operações upsert: FirstOrCreate para Curso/Semestre, FirstOrInit para Aluno/Registro
+- Sem transação global: importação parcial possível em caso de erro por linha
+- Barra de progresso com três estágios visuais no frontend
+- Progresso real do upload via callback onUploadProgress do Axios (0–40%)
+- Simulação de processamento no frontend (40–88%) via setInterval
+- Atualização do contexto de semestres após importação bem-sucedida
+
+3.3 Relatório Acadêmico com Filtros Avançados
+-----------------------------------------------
+- Filtragem por semestre letivo (global, via SemesterContext)
+- Filtros de texto: matrícula, nome do aluno, nome do curso
+- Filtro de seleção: situação acadêmica
+- Três modos de operação via parâmetro URL:
+  * Normal: retorna todos os registros do semestre
+  * Crítico (?mode=critical): locks > 1 OU sem_ch > 1 E em regularidade
+  * Próximos da formatura (?max_pending=N): pendentes ≤ N E em regularidade
+- Cálculo de percentual de conclusão no frontend: (ch_integralizada / ch_total) × 100
+- Chip colorido por situação: verde (regularidade), amarelo (PAE/PIC), vermelho (demais)
+- Botão de ação por aluno: desabilitado se em regularidade, habilitado caso contrário
+- Exibe contagem de registros no subtítulo
+
+3.4 Dashboard de Indicadores com Gráficos Interativos
+------------------------------------------------------
+- Gráfico de pizza (donut) com Recharts: distribuição por situação acadêmica
+  * innerRadius=70, outerRadius=100, paddingAngle=5
+  * Cores: #10B981 (verde), #3B82F6 (azul), #F59E0B (amarelo),
+           #EF4444 (vermelho), #8B5CF6 (roxo)
+  * Slices clicáveis: navegação para relatório filtrado por status
+- Tabela de alunos críticos com critérios definidos por regra de negócio
+- Tabela de próximos da formatura ordenados por menor número de pendentes
+- Botões de ação para ver relatório completo de cada categoria
+- Todos os dados calculados no backend com queries otimizadas
+
+3.5 Histórico Individual do Aluno com Gráficos de Evolução
+------------------------------------------------------------
+- Gráfico de linha (LineChart): evolução da carga horária integralizada ao longo
+  dos semestres (strokeWidth=3, cor esmeralda #10B981)
+- Gráfico de barras (BarChart): disciplinas obrigatórias pendentes por semestre
+  (fill=#EF4444, cor vermelha)
+- Ambos os gráficos com ResponsiveContainer para adaptação ao tamanho da tela
+- Cores dos eixos e tooltips adaptam-se ao tema (claro/escuro) via useTheme()
+- Tabela de histórico completo com todos os semestres e campos de situação
+
+3.6 Sistema de Ações de Acompanhamento
+-----------------------------------------
+- Registro de intervenções acadêmicas por aluno e semestre
+- Campos: data da ação, descrição (max. 500 chars), data de resposta (opcional)
+- Restrição de negócio: proibido criar ação para aluno "Em regularidade"
+- Edição inline na tabela (modo de edição com formulário Grid dentro da linha)
+- Soft delete (campo deleted_at no banco — registro não é fisicamente removido)
+- Histórico ordenado por data decrescente
+
+3.7 Controle de Acesso Baseado em Papel (RBAC)
+------------------------------------------------
+- Dois papéis: "admin" e "user"
+- Validação no backend via middleware (extrai papel do JWT)
+- Validação no frontend via renderização condicional de componentes
+- Itens do menu exibidos condicionalmente: Importar Dados e Cadastrar Usuário
+  são visíveis apenas para admins
+- Cards da Home exibidos condicionalmente por papel
+- Promoção de usuário: switch na tela de gestão de usuários
+- Admin Master (ID=1) protegido contra deleção e rebaixamento
+
+3.8 Tema Claro/Escuro com Paleta Esmeralda
+--------------------------------------------
+- Dois modos completos: light e dark
+- Paleta primária: #059669 (Emerald-600) no claro, #34D399 (Emerald-400) no escuro
+- Fundo dark: #0A0F0D (verde-preto profundo), Paper dark: #111917
+- Fundo light: #F0FDF4 (Emerald-50), Paper light: branco puro
+- Preferência persistida via localStorage (chave: themeMode)
+- Sistema de tokens MUI: todos os componentes herdam o tema automaticamente
+- Scrollbar customizado: cor esmeralda escura no modo dark
+- Tooltips e gráficos adaptam cores dinamicamente via useTheme()
+
+3.9 SPA com Roteamento Client-Side
+-------------------------------------
+- Aplicação Single Page Application (SPA) com React Router v6
+- Roteamento 100% client-side (sem recarregamento de página)
+- Proteção de rotas via componente PrivateRoute
+- Arquivo _redirects em frontend/public/ para suporte ao hosting no Render
+  (instrução: /* /index.html 200 — serve index.html para qualquer rota)
+- Parâmetros de URL utilizados para filtros persistentes (?mode=, ?semester_id=)
+- useSearchParams para leitura e escrita de parâmetros de URL
+
+3.10 Seleção Global de Semestre Letivo
+-----------------------------------------
+- Dropdown no cabeçalho: acessível em todas as páginas
+- SemesterContext compartilhado globalmente: selectedSemester (ID) e
+  selectedSemesterCode (ex.: "2025/1")
+- Todos os relatórios consomem o semestre selecionado via contexto
+- Atualização automática após importação via refreshSemesters()
+
+
+================================================================================
+4. ARQUITETURA DO SISTEMA
+================================================================================
+
+4.1 Visão Geral da Arquitetura
+--------------------------------
+O sistema segue uma arquitetura em três camadas:
+
+  +------------------+         HTTP/REST          +------------------+
+  |                  |  ──────────────────────→   |                  |
+  |  FRONTEND (SPA)  |      Bearer Token JWT       |  BACKEND (API)   |
+  |  React 18 + Vite |  ←──────────────────────   |  Go 1.24 + Gin   |
+  |  Porta 5173      |         JSON                |  Porta 8080      |
+  +------------------+                            +------------------+
+                                                         │
+                                                         │ GORM (ORM)
+                                                         │
+                                                  +──────────────────+
+                                                  |                  |
+                                                  |   BANCO DE DADOS |
+                                                  |  PostgreSQL      |
+                                                  |  (Aiven Cloud)   |
+                                                  +──────────────────+
+
+4.2 Padrão Arquitetural do Backend — MVC Adaptado
+----------------------------------------------------
+O backend segue uma separação em camadas inspirada no padrão MVC:
+
+  CAMADA DE APRESENTAÇÃO (Controllers):
+  - Recebem requisições HTTP via Gin
+  - Extraem parâmetros, validam input e delegam para a camada de serviços
+  - Serializam a resposta em JSON
+  - Arquivos: internal/controllers/
+
+  CAMADA DE NEGÓCIO (Services):
+  - Contém a lógica de negócio isolada dos detalhes HTTP
+  - Serviços: auth_service.go (JWT, BCrypt), import_service.go (parsing CSV/XLSX)
+  - Arquivos: internal/services/
+
+  CAMADA DE DADOS (Models + Database):
+  - Definições das entidades GORM (mapeamento objeto-relacional)
+  - Operações diretas com database.DB (variável global de conexão)
+  - Arquivos: internal/models/, pkg/database/
+
+  CAMADA DE ROTEAMENTO (Routes + Middleware):
+  - Registro das rotas públicas e protegidas
+  - Middleware de autenticação JWT injetado nas rotas protegidas
+  - Arquivos: internal/routes/, internal/middlewares/
+
+4.3 Gerenciamento de Estado no Frontend — Context API
+-------------------------------------------------------
+O frontend utiliza a Context API do React para estado global, sem biblioteca
+de gerenciamento de estado externa (sem Redux ou Zustand):
+
+  AuthContext:
+  - Estado: user (id, name, email, role), authenticated, loading
+  - Ações: login(email, password), logout()
+  - Validação do token ao iniciar a aplicação via GET /api/me
+
+  SemesterContext:
+  - Estado: semesters[], selectedSemester (ID), selectedSemesterCode
+  - Ações: changeSemester(id), refreshSemesters()
+  - Alimentado automaticamente ao autenticar
+
+  ThemeContext:
+  - Estado: mode ('light' | 'dark')
+  - Ação: toggleColorMode()
+  - Integrado com createTheme() do MUI para criação dinâmica do tema
+
+  Hierarquia de Providers no App.jsx:
+    ThemeContextProvider
+      └─ AuthProvider
+           └─ SemesterProvider
+                └─ BrowserRouter (React Router)
+                     └─ Rotas da aplicação
+
+4.4 Comunicação Frontend → Backend
+-------------------------------------
+- Protocolo: HTTP REST (HTTPS em produção)
+- Formato de dados: JSON (Content-Type: application/json)
+- Autenticação: Bearer Token no header Authorization
+- Gerenciamento de requisições: Axios com instância centralizada em api.js
+- Interceptor de request: injeta automaticamente o token em toda requisição
+- Base URL: variável de ambiente VITE_API_URL (padrão: http://localhost:8080)
+- Upload de arquivos: multipart/form-data com rastreamento de progresso
+  via onUploadProgress callback do Axios
+
+4.5 Inicialização do Servidor Backend
+----------------------------------------
+Sequência de execução no main.go:
+  1. Carregar configurações do arquivo .env via Viper
+  2. Conectar ao PostgreSQL via GORM (fatal se falhar)
+  3. Executar AutoMigrate para criar/atualizar tabelas
+  4. Garantir existência do Admin Master (EnsureAdmin)
+  5. Configurar middleware CORS
+  6. Registrar todas as rotas
+  7. Iniciar servidor HTTP na porta configurada
+
+
+================================================================================
+5. TECNOLOGIAS UTILIZADAS E JUSTIFICATIVAS
+================================================================================
+
+5.1 BACKEND
+-----------
+
+[Go 1.24]
+Linguagem de programação compilada, com tipagem estática e gerenciamento de
+memória automático por garbage collector. Criada pela Google em 2009.
+Justificativa:
+  - Performance superior a linguagens interpretadas (Python, Node.js) para
+    operações de I/O e processamento de arquivos CSV/XLSX grandes
+  - Compilação para binário único sem dependências de runtime externas,
+    simplificando o deployment no Render
+  - Goroutines permitem concorrência leve para múltiplas requisições simultâneas
+  - Ecosistema maduro para desenvolvimento de APIs REST
+  - Checagem de tipos em tempo de compilação reduz bugs em produção
+
+[Gin v1.9.1]
+Framework HTTP para Go, um dos mais populares e performáticos do ecosistema Go.
+Justificativa:
+  - Performance: usa httprouter internamente, um dos roteadores mais rápidos em Go
+  - API simples e expressiva para definição de rotas e middlewares
+  - Suporte nativo a grupos de rotas (permite organizar rotas públicas e protegidas)
+  - Middleware componível: autenticação JWT encadeada como função
+  - Parsing automático de JSON no body das requisições
+  - Maturidade: amplamente utilizado em produção por grandes empresas
+
+[GORM v1.31.1]
+ORM (Object-Relational Mapping) para Go, com suporte completo a PostgreSQL.
+Justificativa:
+  - Elimina SQL manual repetitivo para operações CRUD
+  - AutoMigrate: gera e atualiza o schema do banco a partir das structs Go
+  - Relacionamentos automáticos com Preload (eager loading)
+  - Soft delete nativo via campo DeletedAt
+  - Padrões FirstOrCreate e FirstOrInit ideais para o processo de importação (upsert)
+  - Suporte a transações e hooks de ciclo de vida dos modelos
+
+[PostgreSQL (via Aiven)]
+Banco de dados relacional open source, robusto e amplamente utilizado.
+Justificativa:
+  - Dados acadêmicos têm estrutura relacional clara (Aluno ↔ Curso ↔ Registro)
+  - ACID compliance garante integridade dos dados em importações concorrentes
+  - Índices únicos compostos (student_id, semester_id) evitam duplicatas
+  - Aiven oferece instância gerenciada com backups automáticos, SSL e alta
+    disponibilidade sem overhead operacional
+  - Compatibilidade total com GORM e o driver oficial gorm/driver/postgres
+
+[JWT — golang-jwt v5.2.0]
+Biblioteca para geração e validação de JSON Web Tokens.
+Justificativa:
+  - Autenticação stateless: o backend não precisa manter sessões em memória
+  - Escalabilidade: qualquer instância do backend valida o token sem estado compartilhado
+  - O token carrega o papel do usuário (role), eliminando consulta ao banco em
+    cada requisição protegida
+  - Algoritmo HS256 (HMAC-SHA256) é padrão da indústria e bem auditado
+  - Expiração configurável (24h): força reavaliação periódica das credenciais
+
+[BCrypt — golang.org/x/crypto]
+Função de hash criptográfico para senhas, parte do pacote oficial crypto do Go.
+Justificativa:
+  - Projetada especificamente para hash de senhas (lenta por design, resistente a
+    ataques de força bruta e rainbow tables)
+  - Fator de custo adaptável (custo 10 = ~100ms por hash, balanceando segurança e UX)
+  - Resistente a ataques de timing (comparação em tempo constante)
+  - Padrão recomendado pela OWASP para armazenamento de senhas
+
+[Viper v1.21.0]
+Biblioteca de gerenciamento de configuração para Go.
+Justificativa:
+  - Lê variáveis de ambiente e arquivos .env transparentemente
+  - AutomaticEnv() permite sobrescrever configs via variáveis de sistema (ideal para CI/CD)
+  - Desacopla configuração do código: credenciais de banco e JWT_SECRET nunca no repositório
+  - Suporte a múltiplos formatos (env, JSON, YAML) facilita migração futura
+
+[Excelize v2.10.0]
+Biblioteca Go para leitura e escrita de arquivos XLSX (Microsoft Excel).
+Justificativa:
+  - A UFES exporta relatórios institucionais no formato Excel (.xlsx)
+  - Excelize lê qualquer arquivo XLSX sem dependência do Microsoft Office
+  - API simples para navegar por planilhas e células
+  - Alternativa: go-xlsx, mas Excelize possui mais manutenção ativa e documentação
+
+[gin-contrib/cors v1.7.0]
+Middleware CORS oficial da comunidade Gin.
+Justificativa:
+  - Necessário para permitir que o frontend (domínio diferente) acesse a API
+  - Configuração por whitelist de origens (não usa wildcard *), mais seguro
+  - Cache de preflight configurável reduz latência em requisições OPTIONS
+
+
+5.2 FRONTEND
+------------
+
+[React 18.2]
+Biblioteca JavaScript para construção de interfaces de usuário baseada em
+componentes, desenvolvida e mantida pelo Meta (Facebook).
+Justificativa:
+  - Componentização: cada parte da UI é um componente reutilizável e testável
+  - Virtual DOM: atualizações eficientes sem re-renderização completa da página
+  - Ecossistema rico: MUI, Recharts, React Router, React Toastify integram-se nativamente
+  - Concurrent Mode (React 18): melhorias de performance com renderização concorrente
+  - Comunidade gigante, ampla documentação e longevidade garantida
+
+[Vite 5.1.5]
+Ferramenta de build moderna para aplicações web, focada em velocidade.
+Justificativa:
+  - Hot Module Replacement (HMR) instantâneo durante desenvolvimento (vs. CRA que
+    pode demorar segundos)
+  - Build de produção com tree-shaking e code-splitting via Rollup (bundles menores)
+  - Configuração mínima: arquivo vite.config.ts de apenas 7 linhas para o projeto
+  - Suporte nativo a variáveis de ambiente VITE_* para separar configs por ambiente
+  - Alternativa ao Create React App (CRA), que está descontinuado pela comunidade
+
+[Material UI v5.15.11 — MUI]
+Biblioteca de componentes React que implementa o Material Design do Google.
+Justificativa:
+  - Biblioteca completa: 50+ componentes prontos (Table, Dialog, Select, Chip, etc.)
+  - Sistema de temas: paleta, tipografia e espaçamento centralizados em um objeto
+    createTheme(), propagado automaticamente para todos os componentes
+  - Modo escuro nativo: alternar dark/light requer apenas mudar mode no tema
+  - Responsividade via Grid system com breakpoints xs/sm/md/lg/xl
+  - Emotion (CSS-in-JS) integrado: sem conflitos de especificidade CSS global
+  - Acessibilidade: componentes seguem padrões ARIA por padrão
+  - Alternativa: Tailwind CSS requereria mais código manual para componentes
+    complexos como Tabelas com ordenação e filtros
+
+[React Router v6.22.3]
+Biblioteca de roteamento client-side para React.
+Justificativa:
+  - Roteamento declarativo em JSX com componentes <Route> e <Navigate>
+  - Hooks useParams(), useNavigate(), useSearchParams() simplificam navegação
+  - Proteção de rotas com componente PrivateRoute baseado em contexto de autenticação
+  - Parâmetros de URL utilizados como filtros persistentes nos relatórios
+  - SPA sem recarregamento de página: experiência de usuário fluída
+
+[Axios v1.6.7]
+Cliente HTTP baseado em Promises para o navegador e Node.js.
+Justificativa:
+  - Interceptors de request e response: injeção automática do JWT em todas requisições
+  - API Promise-based com suporte a async/await (código mais legível que fetch nativo)
+  - onUploadProgress callback: essencial para a barra de progresso real no upload
+  - Serialização/desserialização automática de JSON
+  - Instância centralizada (api.js) com baseURL configurável por variável de ambiente
+  - Tratamento de erros uniforme com error.response.data.error
+
+[Recharts v3.6.0]
+Biblioteca de gráficos para React, construída sobre D3.js e SVG.
+Justificativa:
+  - Componentes declarativos: gráficos definidos em JSX como qualquer outro componente
+  - ResponsiveContainer: gráficos responsivos sem configuração extra
+  - Três tipos utilizados: LineChart (evolução de CH), BarChart (pendentes),
+    PieChart (distribuição de status)
+  - Suporte a tooltips e legendas customizáveis com estilos do tema
+  - Interatividade: PieChart com onClick para navegação (deep-link para relatório)
+  - Alternativa: Chart.js, mas Recharts integra-se mais naturalmente ao ecosistema React
+
+[React Toastify v10.0.4]
+Biblioteca de notificações (toasts) para React.
+Justificativa:
+  - Notificações não-bloqueantes: exibidas no canto da tela sem interromper o fluxo
+  - Quatro tipos: success, error, warning, info — semanticamente expressivos
+  - Auto-dismiss configurável (3 segundos)
+  - Alternativa às alertas nativas (alert()) e Snackbars do MUI (mais simples de usar)
+  - Configuração global via <ToastContainer /> no App.jsx
+
+[Emotion — @emotion/react e @emotion/styled v11.11]
+Motor de CSS-in-JS utilizado internamente pelo MUI.
+Justificativa:
+  - Estilos escopados por componente, sem vazamento global de CSS
+  - Prop sx do MUI: estilização inline com acesso direto aos tokens do tema
+  - Geração automática de class names únicos evita conflitos de especificidade
+  - Suporte a interpolações dinâmicas baseadas em props (mode, color, etc.)
+  - Não é usado diretamente no código da aplicação; é dependência interna do MUI
+
+
+5.3 INFRAESTRUTURA E DEPLOY
+----------------------------
+
+[Render.com]
+Plataforma de hosting em nuvem para backends e frontends estáticos.
+Justificativa:
+  - Tier gratuito disponível para projetos acadêmicos
+  - Deploy automático via Git push (CI/CD simplificado)
+  - Suporte a variáveis de ambiente pelo painel web (segredos não no repositório)
+  - Backend Go: compilação e execução do binário na nuvem
+  - Frontend: hosting de site estático com CDN global
+  - HTTPS automático via Let's Encrypt
+  - Suporte a arquivo _redirects para SPAs (resolve o problema de F5/rota direta)
+
+[Aiven — PostgreSQL Gerenciado]
+Serviço de banco de dados PostgreSQL totalmente gerenciado na nuvem.
+Justificativa:
+  - Sem necessidade de administração de servidor de banco de dados
+  - Backups automáticos diários
+  - Alta disponibilidade com failover automático
+  - SSL/TLS na conexão (string de conexão já inclui parâmetros de segurança)
+  - Região Virginia (US East), próxima aos servidores do Render para latência mínima
+  - Alternativa: banco de dados local ou PlanetScale, mas Aiven tem tier gratuito
+    adequado ao volume do projeto
+
+
+================================================================================
+6. MODELOS DE DADOS
+================================================================================
+
+6.1 Diagrama de Entidades e Relacionamentos (texto)
+----------------------------------------------------
+
+  User (1) ─────────────────────────────────────────── (sem relação direta)
+
+  Course (1) ───────────────────────────── (N) Student
+                                                │
+                                                │ (N)
+                                          AcademicRecord
+                                                │ (N)
+                                                │
+  Semester (1) ─────────────────────────── (N) AcademicRecord
+
+  Student (1) ─────────────────────────── (N) StudentAction
+  Semester (1) ─────────────────────────── (N) StudentAction
+
+6.2 Tabela: users
+------------------
+  Coluna       | Tipo      | Restrições
+  -------------|-----------|----------------------------------
+  id           | uint      | PK, auto-increment
+  name         | string    | NOT NULL
+  email        | string    | UNIQUE, NOT NULL
+  password     | string    | NOT NULL (hash BCrypt)
+  role         | string    | DEFAULT 'user' ('admin' ou 'user')
+  created_at   | timestamp | gerenciado pelo GORM
+  updated_at   | timestamp | gerenciado pelo GORM
+  deleted_at   | timestamp | soft delete (GORM)
+
+Regras de negócio:
+  - ID=1 é o Admin Master e não pode ser removido nem rebaixado
+  - E-mail único: uma conta por e-mail
+  - Senha nunca retornada nas respostas da API (json:"-")
+
+6.3 Tabela: courses
+--------------------
+  Coluna       | Tipo   | Restrições
+  -------------|--------|----------------------------
+  id           | uint   | PK, auto-increment
+  code         | int    | UNIQUE, NOT NULL
+  name         | string | NOT NULL
+  coordinator  | string |
+
+Regras de negócio:
+  - Populado via importação; atualizado se já existir
+
+6.4 Tabela: semesters
+----------------------
+  Coluna | Tipo   | Restrições
+  -------|--------|----------------------------
+  id     | uint   | PK, auto-increment
+  code   | string | UNIQUE (ex.: "2025/1")
+
+Regras de negócio:
+  - Criado automaticamente na primeira importação do semestre
+  - Código no formato "YYYY/P" (ano/período)
+
+6.5 Tabela: students
+---------------------
+  Coluna        | Tipo   | Restrições
+  --------------|--------|----------------------------
+  id            | uint   | PK, auto-increment
+  registration  | string | UNIQUE, NOT NULL (matrícula)
+  name          | string | NOT NULL
+  entry_year    | int    |
+  entry_period  | string | ('1' ou '2')
+  quota_type    | string | (modalidade de cota do SISU/ENEM)
+  course_id     | uint   | FK → courses.id
+
+Regras de negócio:
+  - Matrícula é a chave natural do aluno no sistema institucional
+  - Dados atualizados a cada reimportação
+
+6.6 Tabela: academic_records
+------------------------------
+  Coluna              | Tipo   | Restrições
+  --------------------|--------|-------------------------------------------
+  id                  | uint   | PK, auto-increment
+  student_id          | uint   | FK → students.id
+  semester_id         | uint   | FK → semesters.id
+  status              | string | situação acadêmica
+  status_detail       | string | detalhamento da situação
+  integralized_hours  | int    | CH integralizada até o semestre
+  total_hours         | int    | CH total exigida pelo curso
+  pending_obligatory  | int    | disciplinas obrigatórias pendentes
+  semesters_no_hours  | int    | semestres sem qualquer CH cursada
+  locks               | int    | quantidade de trancamentos
+
+Índices:
+  - UNIQUE (student_id, semester_id): garante um registro por aluno/semestre
+
+Regras de negócio:
+  - Aluno crítico: locks > 1 OU semesters_no_hours > 1
+  - Próximo da formatura: pending_obligatory <= 6
+  - Percentual de conclusão: integralized_hours / total_hours × 100
+
+6.7 Tabela: student_actions
+-----------------------------
+  Coluna        | Tipo      | Restrições
+  --------------|-----------|-------------------------------------------
+  id            | uint      | PK, auto-increment
+  student_id    | uint      | FK → students.id, INDEX
+  semester_id   | uint      | FK → semesters.id, INDEX
+  action_date   | timestamp | NOT NULL
+  description   | string    | NOT NULL, máx. 500 caracteres
+  response_date | timestamp | NULLABLE (data de resposta do aluno)
+  deleted_at    | timestamp | soft delete (GORM)
+
+Regras de negócio:
+  - Só pode ser criada se o aluno tiver status diferente de "Em regularidade"
+  - Soft delete: registros não são apagados fisicamente
+
+
+================================================================================
+7. REGRAS DE NEGÓCIO
+================================================================================
+
+7.1 Status Acadêmicos
+----------------------
+Os seguintes valores de status são utilizados pelo sistema, refletindo a
+nomenclatura oficial do acompanhamento discente da UFES:
+
+  "Em regularidade"       — Aluno dentro dos requisitos acadêmicos normais.
+                            Não requer intervenção imediata.
+
+  "PAE"                   — Programa de Acompanhamento Especial. Aluno em
+                            situação de atenção, com plano de metas definido.
+
+  "PIC"                   — Plano Individual de Conclusão. Situação mais grave,
+                            aluno com risco iminente de desligamento.
+
+  "Bloqueio de matrícula" — Matrícula bloqueada por descumprimento de requisitos.
+                            Aluno impedido de se matricular nas disciplinas.
+
+  "Desligamento"          — Aluno desligado do curso por não cumprir os
+                            requisitos mínimos exigidos pela instituição.
+
+7.2 Classificação de Alunos Críticos
+--------------------------------------
+Critério definido na camada de dados (query SQL):
+  WHERE (locks > 1 OR semesters_no_hours > 1) AND status = 'Em regularidade'
+
+Justificativa: Alunos com múltiplos trancamentos ou múltiplos semestres sem
+qualquer atividade acadêmica, mesmo estando formalmente "em regularidade",
+apresentam risco latente de abandono ou de enquadramento futuro em PAE/PIC.
+O sistema os sinaliza proativamente.
+
+7.3 Classificação de Próximos da Formatura
+--------------------------------------------
+Critério:
+  WHERE pending_obligatory <= 6 AND status = 'Em regularidade'
+  ORDER BY pending_obligatory ASC
+
+Justificativa: Alunos com 6 ou menos disciplinas obrigatórias pendentes têm
+alta probabilidade de concluir o curso nos próximos 1 a 2 semestres. O
+monitoramento permite ações preventivas para garantir a conclusão.
+
+7.4 Proteção do Admin Master
+-----------------------------
+  - Usuário com ID=1 não pode ser deletado (verificação no handler de deleção)
+  - Usuário com ID=1 não pode ter seu papel alterado para "user"
+  - Usuário não pode se auto-deletar
+  - Garante que o sistema sempre tenha um administrador acessível
+
+7.5 Restrição de Criação de Ações
+-----------------------------------
+  Antes de criar uma ação (StudentAction), o backend verifica:
+  1. Existência de um AcademicRecord para o aluno no semestre informado
+  2. O status do registro NÃO é "Em regularidade"
+  Se qualquer condição falhar, a API retorna 400 Bad Request com mensagem
+  explicativa.
+
+7.6 Estratégia de Importação (Upsert)
+----------------------------------------
+  Durante a importação de uma planilha, o sistema utiliza:
+  - FirstOrCreate por código (Course, Semester): cria se não existe
+  - FirstOrInit por matrícula (Student): cria ou inicializa para atualizar
+  - FirstOrInit por (student_id, semester_id) (AcademicRecord): upsert
+
+  Isso permite reimportar o mesmo semestre atualizando dados existentes sem
+  duplicar registros.
+
+
+================================================================================
+8. SEGURANÇA
+================================================================================
+
+8.1 Autenticação e Autorização
+---------------------------------
+  - Senhas armazenadas com BCrypt (custo 10): ~100ms por hash, resistente a
+    ataques de força bruta e rainbow tables
+  - JWT assinado com HS256 (HMAC-SHA256) e segredo de ambiente (JWT_SECRET)
+  - Expiração de token em 24 horas: mitiga risco de tokens roubados
+  - RBAC validado no backend: papel do usuário extraído do JWT, não do frontend
+  - Middleware de autenticação aplicado em todas as rotas protegidas
+
+8.2 CORS
+---------
+  - Whitelist de origens: apenas localhost:5173 e frontend-ada.onrender.com
+  - Não utiliza wildcard (*), evitando acesso de origens não autorizadas
+  - Métodos e headers explicitamente listados
+
+8.3 Proteção de Dados Sensíveis
+---------------------------------
+  - Campo password nunca retornado nas respostas da API (tag json:"-")
+  - Segredos (DATABASE_URL, JWT_SECRET) apenas em variáveis de ambiente
+  - Arquivo .env não versionado no repositório git (.gitignore)
+
+8.4 Limitações Conhecidas
+--------------------------
+  - Sem rate limiting no endpoint de login (vulnerável a força bruta)
+  - Token armazenado no localStorage do navegador (vulnerável a XSS)
+    Alternativa mais segura: cookies HttpOnly com flag SameSite=Strict
+  - Sem validação de tipo/conteúdo no upload de arquivos (aceita qualquer arquivo
+    com extensão .csv ou .xlsx)
+  - Sem logging de auditoria: não há registro de quem acessou quais dados
+  - Sem HTTPS enforcement no ambiente de desenvolvimento (apenas produção)
+  - Importação sem transação global: falha parcial pode deixar dados inconsistentes
+
+8.5 Possíveis Melhorias de Segurança
+--------------------------------------
+  - Implementar rate limiting (ex.: golang.org/x/time/rate) no login
+  - Migrar token para cookie HttpOnly + SameSite=Strict
+  - Adicionar CSRF protection para operações com cookies
+  - Implementar refresh tokens para estender sessão sem relogin
+  - Adicionar log de auditoria por operação crítica (importação, deleção de usuário)
+  - Validação de tipo MIME no upload de arquivos
+
+
+================================================================================
+9. ESTRUTURA DO PROJETO
+================================================================================
+
+9.1 Estrutura do Backend
+--------------------------
+
+  backend/
+  ├── cmd/
+  │   └── server/
+  │       └── main.go                  # Ponto de entrada: inicialização e bootstrap
+  ├── config/
+  │   └── config.go                    # Carregamento de configurações via Viper
+  ├── internal/
+  │   ├── controllers/                 # Handlers HTTP (camada de apresentação)
+  │   │   ├── auth_controller.go       # Login, GetMe
+  │   │   ├── user_controller.go       # CRUD de usuários
+  │   │   ├── import_controller.go     # Upload de planilhas
+  │   │   ├── student_controller.go    # Histórico do aluno
+  │   │   ├── action_controller.go     # Ações de acompanhamento
+  │   │   ├── indicators_controller.go # Dashboard de indicadores
+  │   │   └── report_controller.go     # Relatórios (registros, cursos, alunos)
+  │   ├── middlewares/
+  │   │   └── auth_middleware.go       # Validação JWT e extração de claims
+  │   ├── models/                      # Entidades GORM (mapeamento objeto-relacional)
+  │   │   ├── user.go
+  │   │   ├── course.go
+  │   │   ├── semester.go
+  │   │   ├── student.go
+  │   │   ├── academic_record.go
+  │   │   └── student_action.go
+  │   ├── services/                    # Camada de negócio
+  │   │   ├── auth_service.go          # Lógica de login, JWT, BCrypt, criação de usuário
+  │   │   └── import_service.go        # Parsing e processamento de CSV/XLSX
+  │   └── routes/
+  │       └── routes.go                # Definição e agrupamento de rotas
+  ├── pkg/
+  │   └── database/
+  │       └── postgres.go              # Conexão com PostgreSQL via GORM
+  ├── go.mod                           # Dependências e versão do módulo Go
+  ├── go.sum                           # Checksums das dependências
+  └── .env                             # Variáveis de ambiente (não versionado)
+
+9.2 Estrutura do Frontend
+---------------------------
+
+  frontend/
+  ├── public/
+  │   ├── ufes-logo.png                # Logo da UFES usada na tela de login
+  │   └── _redirects                   # Regra de roteamento SPA para o Render
+  ├── src/
+  │   ├── main.jsx                     # Ponto de entrada React
+  │   ├── App.jsx                      # Componente raiz: providers e rotas
+  │   ├── theme.js                     # Tema MUI (paleta esmeralda, light/dark)
+  │   ├── context/
+  │   │   ├── AuthContext.jsx          # Estado de autenticação global
+  │   │   ├── SemesterContext.jsx      # Semestre selecionado global
+  │   │   └── ThemeContext.jsx         # Modo de tema (claro/escuro)
+  │   ├── services/
+  │   │   └── api.js                   # Instância Axios com interceptor JWT
+  │   ├── components/
+  │   │   └── Header.jsx               # Cabeçalho: logo, semestre, menu do usuário
+  │   └── pages/
+  │       ├── Login.jsx                # Tela de autenticação
+  │       ├── Home.jsx                 # Dashboard com cards de módulos
+  │       ├── Profile.jsx              # Edição de perfil do usuário
+  │       ├── RegisterUser.jsx         # Cadastro de novo usuário (admin)
+  │       ├── UsersList.jsx            # Listagem e gestão de usuários (admin)
+  │       ├── ImportData.jsx           # Upload de planilhas com barra de progresso
+  │       ├── StudentProfile.jsx       # Histórico individual do aluno com gráficos
+  │       ├── StudentActions.jsx       # Ações de acompanhamento por aluno/semestre
+  │       └── Reports/
+  │           ├── AcademicReport.jsx   # Relatório acadêmico com filtros avançados
+  │           ├── StudentsReport.jsx   # Base de alunos com filtros demográficos
+  │           ├── CoursesReport.jsx    # Catálogo de cursos e coordenadores
+  │           └── IndicatorsReport.jsx # Dashboard com gráficos e tabelas de indicadores
+  ├── package.json                     # Dependências e scripts npm
+  ├── vite.config.ts                   # Configuração do Vite
+  └── .env                             # Variáveis de ambiente (não versionado)
+
+
+================================================================================
+10. DECISÕES TÉCNICAS E JUSTIFICATIVAS ARQUITETURAIS
+================================================================================
+
+[Por que Go e não Node.js ou Python?]
+Go foi escolhido pela performance em operações de I/O concorrente e pela
+compilação para binário único, que simplifica o deploy no Render (sem configurar
+runtime de Python/Node). Para uma API REST com processamento de arquivos CSV de
+centenas de linhas, Go oferece throughput superior e menor consumo de memória.
+
+[Por que Gin e não outros frameworks Go?]
+Gin é o framework HTTP Go mais popular e tem benchmark comprovado como um dos
+mais rápidos. Sua API é concisa, o sistema de middlewares é simples e a documentação
+é ampla. Alternativas como Echo ou Fiber são igualmente válidas, mas Gin tem maior
+comunidade e mais exemplos disponíveis.
+
+[Por que Context API e não Redux/Zustand?]
+A aplicação tem três estados globais bem definidos: autenticação, semestre e tema.
+Para essa escala, o Context API do próprio React é suficiente e evita dependência
+externa. Redux adiciona boilerplate significativo para benefício pequeno em uma SPA
+de tamanho médio. Zustand seria uma alternativa viável, mas Context API mantém
+zero dependências extras.
+
+[Por que Vite e não Create React App (CRA)?]
+O CRA foi descontinuado pela comunidade React em 2023. Vite oferece HMR
+instantâneo (vs. segundos no CRA), build de produção mais rápido e configuração
+mais simples. Para novos projetos React, Vite é o padrão recomendado.
+
+[Por que MUI e não Tailwind CSS?]
+MUI foi escolhido pelo sistema de temas centralizado: ao definir a paleta em
+theme.js, todos os componentes herdam as cores automaticamente sem anotação
+manual de classes em cada elemento. Para dark/light mode abrangente, MUI é
+significativamente mais produtivo. Tailwind exigiria criar todos os componentes
+de tabela, diálogo e select manualmente ou usar bibliotecas adicionais (HeadlessUI).
+
+[Por que PostgreSQL e não MongoDB?]
+Os dados do sistema são fortemente relacionais: Aluno ↔ Curso, Aluno ↔ Semestre,
+Aluno ↔ AcademicRecord. Chaves estrangeiras e índices compostos são essenciais
+para integridade e performance das queries de relatório. MongoDB (NoSQL) seria
+mais complexo de consultar para JOINs e agregações como COUNT + GROUP BY status.
+
+[Por que JWT stateless e não sessões?]
+JWT elimina a necessidade de armazenar estado de sessão no servidor, permitindo
+que qualquer instância do backend valide tokens sem banco de dados adicional (Redis,
+memória compartilhada). Para o contexto de deploy no Render (escala horizontal
+simples), stateless é ideal. A desvantagem (invalidação imediata impossível sem
+blocklist) foi aceita dada a expiração de 24h.
+
+[Por que Recharts e não Chart.js?]
+Recharts é construído como componentes React nativos, o que significa que gráficos
+são declarados em JSX como qualquer outro componente. Chart.js requer manipulação
+via ref e API imperativa, o que é menos idiomático no React. Recharts integra-se
+naturalmente ao ciclo de vida do React (re-render automático com novos dados) e
+aceita estilos do tema via props.
+
+
+================================================================================
+11. PONTOS DE MELHORIA E TRABALHOS FUTUROS
+================================================================================
+
+11.1 Limitações Técnicas Identificadas
+-----------------------------------------
+
+  [Sem paginação nos relatórios]
+  Todos os endpoints retornam o conjunto completo de registros. Para universidades
+  com milhares de alunos por semestre, isso causa consultas lentas e payloads grandes.
+  Solução: cursor-based pagination ou limit/offset com componente Pagination do MUI.
+
+  [Sem rate limiting]
+  O endpoint POST /api/login não tem proteção contra força bruta. Um atacante pode
+  tentar milhares de senhas sem bloqueio.
+  Solução: middleware de rate limiting (ex.: golang.org/x/time/rate ou nginx upstream).
+
+  [Sem testes automatizados]
+  Não há testes unitários no backend (Go testing) nem testes de interface (Jest +
+  React Testing Library). Toda validação é manual.
+  Solução: testes unitários para services (auth_service, import_service) e
+  testes de integração para os endpoints da API.
+
+  [Token no localStorage]
+  Armazenar o JWT no localStorage expõe o token a ataques XSS. Qualquer script
+  injetado na página pode ler o token.
+  Solução: migrar para cookie HttpOnly com atributos SameSite=Strict e Secure.
+
+  [Sem logging estruturado]
+  O backend usa log.Println() para mensagens de texto simples. Não há níveis de
+  log (DEBUG/INFO/WARN/ERROR) nem formato estruturado (JSON) para ingestão em
+  ferramentas de observabilidade.
+  Solução: adotar slog (biblioteca padrão Go 1.21+) ou zerolog.
+
+  [Importação sem transação global]
+  Se o processamento de uma linha do CSV falhar, as linhas anteriores já foram
+  salvas. Isso pode deixar o banco em estado parcialmente atualizado.
+  Solução: envolver todo o processamento em database.DB.Transaction().
+
+  [Sem validação de arquivo no upload]
+  O backend aceita qualquer arquivo com extensão .csv ou .xlsx sem validar o
+  tipo MIME ou o conteúdo real do arquivo.
+  Solução: validar magic bytes (assinatura de arquivo) e limitar tamanho máximo.
+
+11.2 Possíveis Extensões Futuras
+-----------------------------------
+
+  [Notificações por e-mail]
+  Envio automático de alerta aos coordenadores quando novos alunos críticos são
+  identificados após uma importação. Tecnologia: SMTP via Go (net/smtp) ou
+  serviço externo (SendGrid, Resend).
+
+  [Portal do Aluno]
+  Interface read-only para que o próprio aluno consulte sua situação acadêmica,
+  eliminando a necessidade de solicitações por e-mail ao coordenador.
+
+  [Exportação de relatórios em PDF/Excel]
+  Geração de documentos para arquivamento ou envio formal. No Go: biblioteca
+  gofpdf; no frontend: jsPDF ou exportação via Excelize no backend.
+
+  [Análise preditiva]
+  Uso de machine learning para prever quais alunos "Em regularidade" têm maior
+  probabilidade de evoluir para PAE/PIC com base em histórico de semestres
+  anteriores. Possível com modelos treinados em Python e expostos via API.
+
+  [Aplicativo móvel]
+  Interface React Native para que coordenadores consultem informações em
+  dispositivos móveis durante atendimentos ou reuniões.
+
+  [Suporte a múltiplas instituições]
+  Isolamento de dados por tenant (multi-tenancy) para expandir o sistema para
+  outras universidades além da UFES.
+
+  [Integração direta com sistema institucional]
+  Em vez de importação manual de CSV, integração via API ou acesso direto ao
+  banco de dados do sistema da UFES, eliminando o passo manual de exportação.
+
+
+================================================================================
+FIM DO DOCUMENTO
+================================================================================

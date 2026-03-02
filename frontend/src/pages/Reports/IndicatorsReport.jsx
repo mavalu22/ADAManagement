@@ -1,17 +1,16 @@
 import { useEffect, useState, useContext } from 'react';
-import { 
+import {
   Box, Container, Grid, Paper, Typography, LinearProgress,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, 
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Chip, IconButton, Tooltip, Button, useTheme
-} from '@mui/material'; // <--- Adicionado useTheme
-import { 
-  PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer 
+} from '@mui/material';
+import {
+  PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer
 } from 'recharts';
 
-// Ícones
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import TimelineIcon from '@mui/icons-material/Timeline';
-import SchoolIcon from '@mui/icons-material/School'; 
+import SchoolIcon from '@mui/icons-material/School';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,7 +22,7 @@ const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'];
 
 const IndicatorsReport = () => {
   const navigate = useNavigate();
-  const theme = useTheme(); // <--- Hook do tema
+  const theme = useTheme();
   const { selectedSemester, selectedSemesterCode } = useContext(SemesterContext);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -31,7 +30,7 @@ const IndicatorsReport = () => {
   useEffect(() => {
     if (!selectedSemester) return;
     setLoading(true);
-    
+
     api.get(`/reports/dashboard?semester_id=${selectedSemester}`)
        .then(res => setData(res.data))
        .catch(err => console.error(err))
@@ -42,14 +41,13 @@ const IndicatorsReport = () => {
     navigate(`/reports/records?status=${entry.name}`);
   };
 
-  // Define as cores da scrollbar baseadas no modo atual (sem callback)
   const scrollbarTrack = theme.palette.mode === 'light' ? '#f1f1f1' : '#0F172A';
   const scrollbarThumb = theme.palette.mode === 'light' ? '#c1c1c1' : '#334155';
   const scrollbarThumbHover = theme.palette.mode === 'light' ? '#a8a8a8' : '#475569';
 
   const scrollStyle = {
     flexGrow: 1,
-    overflowY: 'auto', 
+    overflowY: 'auto',
     '&::-webkit-scrollbar': {
       width: '8px',
       height: '8px',
@@ -67,7 +65,6 @@ const IndicatorsReport = () => {
     },
   };
 
-  // Estilo do Tooltip do Recharts para Dark Mode
   const chartTooltipStyle = {
     backgroundColor: theme.palette.background.paper,
     border: `1px solid ${theme.palette.divider}`,
@@ -82,7 +79,7 @@ const IndicatorsReport = () => {
     <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
       <Header />
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-        
+
         <Box sx={{ mb: 4 }}>
           <Typography variant="h4" fontWeight={700} color="text.primary">
             Painel de Indicadores
@@ -93,8 +90,7 @@ const IndicatorsReport = () => {
         </Box>
 
         <Grid container spacing={3}>
-            
-            {/* 1. GRÁFICO DE STATUS */}
+
             <Grid item xs={12} md={5}>
                 <Paper sx={{ p: 3, height: 450, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <Typography variant="h6" gutterBottom fontWeight="bold">
@@ -115,7 +111,7 @@ const IndicatorsReport = () => {
                                 label
                                 onClick={handlePieClick}
                                 style={{ cursor: 'pointer' }}
-                                stroke={theme.palette.background.paper} // Borda da fatia na cor do fundo
+                                stroke={theme.palette.background.paper}
                             >
                                 {data.status_distribution.map((_, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -128,7 +124,6 @@ const IndicatorsReport = () => {
                 </Paper>
             </Grid>
 
-            {/* 2. ALUNOS CRÍTICOS */}
             <Grid item xs={12} md={7}>
                 <Paper sx={{ p: 3, height: 450, display: 'flex', flexDirection: 'column' }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -138,15 +133,15 @@ const IndicatorsReport = () => {
                                 Atenção: Alunos em Situação Crítica
                             </Typography>
                         </Box>
-                        
-                        <Button 
+
+                        <Button
                             variant="outlined" color="error" size="small" endIcon={<VisibilityIcon />}
                             onClick={() => navigate('/reports/records?mode=critical')}
                         >
                             Ver Todos
                         </Button>
                     </Box>
-                    
+
                     <TableContainer sx={scrollStyle}>
                         <Table size="small" stickyHeader>
                             <TableHead>
@@ -193,7 +188,6 @@ const IndicatorsReport = () => {
                 </Paper>
             </Grid>
 
-            {/* 3. ALUNOS NA RETA FINAL */}
             <Grid item xs={12}>
                 <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column' }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -204,7 +198,7 @@ const IndicatorsReport = () => {
                             </Typography>
                         </Box>
 
-                        <Button 
+                        <Button
                             variant="outlined" color="success" size="small" endIcon={<VisibilityIcon />}
                             onClick={() => navigate('/reports/records?max_pending=6')}
                         >
@@ -230,10 +224,10 @@ const IndicatorsReport = () => {
                                         <TableCell>{student.name}</TableCell>
                                         <TableCell>{student.course}</TableCell>
                                         <TableCell align="center">
-                                            <Chip 
-                                                label={student.pending_obligatory} 
-                                                color="success" 
-                                                size="small" 
+                                            <Chip
+                                                label={student.pending_obligatory}
+                                                color="success"
+                                                size="small"
                                                 variant={student.pending_obligatory === 0 ? "filled" : "outlined"}
                                             />
                                         </TableCell>

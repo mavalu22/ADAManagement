@@ -35,11 +35,9 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Extrair Claims e salvar no Contexto do Gin
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			// Nota: O JWT guarda números como float64 por padrão
 			c.Set("userID", claims["user_id"])
-			c.Set("role", claims["role"]) // Vamos adicionar isso no token logo abaixo
+			c.Set("role", claims["role"])
 		}
 
 		c.Next()

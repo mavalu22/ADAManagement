@@ -18,7 +18,6 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// Retorna Token + Objeto Usuário (para o front saber o nome)
 func Login(email, password string) (string, *models.User, error) {
 	var user models.User
 
@@ -46,10 +45,8 @@ func Login(email, password string) (string, *models.User, error) {
 }
 
 func CreateUser(name, email, password, role string) error {
-	// 1. Verificação prévia: O e-mail já existe?
 	var existingUser models.User
 	if result := database.DB.Where("email = ?", email).First(&existingUser); result.Error == nil {
-		// Se result.Error for nil, significa que ENCONTROU um usuário
 		return errors.New("Este e-mail já está cadastrado no sistema")
 	}
 
@@ -71,12 +68,12 @@ func CreateUser(name, email, password, role string) error {
 
 	return database.DB.Create(&user).Error
 }
+
 func EnsureAdmin() {
 	var count int64
 	database.DB.Model(&models.User{}).Where("email = ?", config.AppConfig.AdminEmail).Count(&count)
 
 	if count == 0 {
-		// Admin sempre tem role "admin"
 		err := CreateUser(config.AppConfig.AdminName, config.AppConfig.AdminEmail, config.AppConfig.AdminPassword, "admin")
 		if err != nil {
 			log.Printf("Erro ao criar admin: %v", err)

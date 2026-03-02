@@ -9,7 +9,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// Listar todos os usuários (Apenas Admin)
 func GetUsersHandler(c *gin.Context) {
 	query := database.DB.Model(&models.User{})
 
@@ -26,7 +25,6 @@ func GetUsersHandler(c *gin.Context) {
 	}
 
 	var users []models.User
-	// Omitimos a senha por segurança
 	if err := query.Omit("password").Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar usuários"})
 		return
@@ -35,7 +33,6 @@ func GetUsersHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, users)
 }
 
-// Atualizar Usuário (Perfil ou Promoção)
 func UpdateUserHandler(c *gin.Context) {
 	id := c.Param("id")
 	requesterRole := c.GetString("role")
@@ -47,7 +44,6 @@ func UpdateUserHandler(c *gin.Context) {
 		return
 	}
 
-	// Permissão básica
 	if requesterRole != "admin" && uint(user.ID) != requesterID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Sem permissão"})
 		return
@@ -76,10 +72,8 @@ func UpdateUserHandler(c *gin.Context) {
 		user.Password = string(hash)
 	}
 
-	// Regra de Role
 	if input.Role != "" {
 		if requesterRole == "admin" {
-			// === PROTEÇÃO DO MASTER ADMIN (ID 1) ===
 			if user.ID == 1 && input.Role != "admin" {
 				c.JSON(http.StatusForbidden, gin.H{"error": "O Admin Principal não pode ser rebaixado."})
 				return
@@ -102,7 +96,6 @@ func DeleteUserHandler(c *gin.Context) {
 		return
 	}
 
-	// === PROTEÇÃO DO MASTER ADMIN (ID 1) ===
 	if user.ID == 1 {
 		c.JSON(http.StatusForbidden, gin.H{"error": "O Admin Principal não pode ser excluído."})
 		return

@@ -25,38 +25,31 @@ const StudentActions = () => {
   const navigate = useNavigate();
   const { selectedSemesterCode } = useContext(SemesterContext);
 
-  // Dados do aluno
   const [studentName, setStudentName] = useState('');
   const [studentStatus, setStudentStatus] = useState('');
 
-  // Lista de ações
   const [actions, setActions] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Formulário de nova ação / edição
   const [actionDate, setActionDate] = useState(TODAY);
   const [description, setDescription] = useState('');
   const [responseDate, setResponseDate] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Edição inline
   const [editingId, setEditingId] = useState(null);
   const [editActionDate, setEditActionDate] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editResponseDate, setEditResponseDate] = useState('');
 
-  // Busca dados do aluno e suas ações ao montar
   useEffect(() => {
     if (!semesterId) return;
 
-    // Busca histórico do aluno para obter nome e status
     api.get(`/students/${registration}/history`)
        .then(res => {
          const data = res.data;
          if (data?.student) {
            setStudentName(data.student.name || registration);
          }
-         // Pega o status do semestre selecionado
          if (data?.records) {
            const record = data.records.find(r => String(r.semester_id) === String(semesterId));
            if (record) setStudentStatus(record.status);
@@ -65,7 +58,6 @@ const StudentActions = () => {
        .catch(() => setStudentName(registration));
 
     fetchActions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registration, semesterId]);
 
   const fetchActions = () => {
@@ -96,7 +88,6 @@ const StudentActions = () => {
       };
       await api.post(`/students/${registration}/actions`, body);
       toast.success('Ação registrada com sucesso!');
-      // Limpa formulário e recarrega
       setActionDate(TODAY);
       setDescription('');
       setResponseDate('');
@@ -169,7 +160,6 @@ const StudentActions = () => {
       <Header />
       <Container maxWidth="lg" sx={{ mt: 4 }}>
 
-        {/* Cabeçalho da página */}
         <Paper sx={{ p: 3, mb: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
             <Tooltip title="Voltar ao Relatório Acadêmico">
@@ -196,7 +186,6 @@ const StudentActions = () => {
           </Box>
         </Paper>
 
-        {/* Formulário de nova ação */}
         <Paper sx={{ p: 3, mb: 3 }}>
           <Typography variant="h6" fontWeight="bold" gutterBottom>
             Registrar Nova Ação
@@ -246,7 +235,6 @@ const StudentActions = () => {
           </Grid>
         </Paper>
 
-        {/* Lista de ações registradas */}
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" fontWeight="bold" gutterBottom>
             Ações Registradas
@@ -275,7 +263,6 @@ const StudentActions = () => {
                 )}
                 {actions.map((action) => (
                   editingId === action.ID ? (
-                    /* Linha em modo de edição — formulário full-width */
                     <TableRow key={action.ID} sx={{ bgcolor: 'action.hover' }}>
                       <TableCell colSpan={4} sx={{ py: 2, px: 3 }}>
                         <Grid container spacing={2} alignItems="flex-start">
@@ -324,7 +311,6 @@ const StudentActions = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    /* Linha em modo de visualização */
                     <TableRow key={action.ID} hover>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>
                         {formatDate(action.action_date)}

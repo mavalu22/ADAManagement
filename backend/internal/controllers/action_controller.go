@@ -10,8 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GET /api/students/:registration/actions?semester_id=X
-// Lista todas as ações registradas para um aluno em um semestre, ordenadas por data DESC
 func GetStudentActionsHandler(c *gin.Context) {
 	registration := c.Param("registration")
 	semesterID := c.Query("semester_id")
@@ -39,9 +37,6 @@ func GetStudentActionsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, actions)
 }
 
-// POST /api/students/:registration/actions
-// Registra uma nova ação para um aluno em um semestre
-// Regra de negócio: bloqueado para alunos com status "Em regularidade"
 func CreateStudentActionHandler(c *gin.Context) {
 	registration := c.Param("registration")
 
@@ -68,7 +63,6 @@ func CreateStudentActionHandler(c *gin.Context) {
 		return
 	}
 
-	// Validar situação acadêmica do aluno no semestre
 	var record models.AcademicRecord
 	if err := database.DB.
 		Where("student_id = ? AND semester_id = ?", student.ID, body.SemesterID).
@@ -77,7 +71,6 @@ func CreateStudentActionHandler(c *gin.Context) {
 		return
 	}
 
-	// Regra de negócio: não permite ação para aluno em regularidade
 	if record.Status == "Em regularidade" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Não é possível registrar ações para alunos em situação regular"})
 		return
@@ -99,8 +92,6 @@ func CreateStudentActionHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, action)
 }
 
-// PUT /api/actions/:id
-// Atualiza uma ação existente (parcial: apenas os campos enviados são alterados)
 func UpdateStudentActionHandler(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -125,7 +116,6 @@ func UpdateStudentActionHandler(c *gin.Context) {
 		return
 	}
 
-	// Atualização parcial: apenas altera o que foi enviado
 	updates := map[string]interface{}{}
 
 	if body.ActionDate != nil {
@@ -155,8 +145,6 @@ func UpdateStudentActionHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, action)
 }
 
-// DELETE /api/actions/:id
-// Remove (soft delete) uma ação registrada
 func DeleteStudentActionHandler(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

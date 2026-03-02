@@ -7,7 +7,6 @@ import { AuthContext } from '../context/AuthContext';
 import { SemesterContext } from '../context/SemesterContext';
 import api from '../services/api';
 
-// Ícones para os Cards
 import PeopleIcon from '@mui/icons-material/People';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import SchoolIcon from '@mui/icons-material/School';
@@ -42,7 +41,6 @@ const ModuleCard = ({ icon: Icon, title, description, color, isEmpty, onClick })
     }}
   >
     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-      {/* Ícone em container colorido */}
       <Box
         sx={{
           p: 1.25,
@@ -57,7 +55,6 @@ const ModuleCard = ({ icon: Icon, title, description, color, isEmpty, onClick })
         <Icon sx={{ fontSize: 28, color: isEmpty ? 'text.disabled' : color }} />
       </Box>
 
-      {/* Conteúdo */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography
           variant="h6"
@@ -71,7 +68,6 @@ const ModuleCard = ({ icon: Icon, title, description, color, isEmpty, onClick })
         </Typography>
       </Box>
 
-      {/* Seta */}
       <ChevronRightIcon
         className="card-arrow"
         sx={{
@@ -125,7 +121,6 @@ const Home = () => {
             !indicatorsRes.data?.status_distribution ||
             indicatorsRes.data.status_distribution.length === 0;
         } catch {
-          // mantém como vazio
         }
       }
 

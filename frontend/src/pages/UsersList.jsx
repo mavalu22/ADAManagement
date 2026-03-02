@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useContext, useRef } from 'react';
-import { 
-  Box, Container, Typography, Paper, Table, TableBody, TableCell, 
+import {
+  Box, Container, Typography, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, IconButton, Chip, Switch, Tooltip,
   Grid, TextField, MenuItem, Button
 } from '@mui/material';
@@ -15,23 +15,19 @@ import { AuthContext } from '../context/AuthContext';
 const UsersList = () => {
   const [users, setUsers] = useState([]);
   const { user: currentUser } = useContext(AuthContext);
-  
-  // 1. REFS para campos de texto (Performance: não re-renderiza ao digitar)
+
   const nameRef = useRef(null);
   const emailRef = useRef(null);
 
-  // 2. STATE para o Select (Necessário para limpar visualmente o dropdown)
   const [role, setRole] = useState('');
 
   const fetchUsers = async () => {
     try {
       const params = new URLSearchParams();
-      
-      // Leitura dos Refs
+
       if (nameRef.current?.value) params.append('name', nameRef.current.value);
       if (emailRef.current?.value) params.append('email', emailRef.current.value);
-      
-      // Leitura do State
+
       if (role) params.append('role', role);
 
       const response = await api.get(`/users?${params.toString()}`);
@@ -43,19 +39,15 @@ const UsersList = () => {
 
   useEffect(() => {
     fetchUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleClear = () => {
-    // Limpa os campos de texto
     if (nameRef.current) nameRef.current.value = '';
     if (emailRef.current) emailRef.current.value = '';
-    
-    // Limpa o dropdown visualmente atualizando o estado
+
     setRole('');
   };
 
-  // Funções de Ação (Delete/Update)
   const handleDelete = async (id) => {
     if (!window.confirm("Tem certeza que deseja remover este usuário?")) return;
     try {
@@ -94,13 +86,12 @@ const UsersList = () => {
     <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
       <Header />
       <Container maxWidth="lg" sx={{ mt: 5 }}>
-        
+
         <Paper elevation={3} sx={{ p: 4, mb: 3 }}>
           <Typography variant="h5" color="primary" fontWeight="bold" mb={3}>
             Gerenciamento de Usuários
           </Typography>
-          
-          {/* Filtros */}
+
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} sm={4}>
                 <TextField fullWidth label="Nome" inputRef={nameRef} size="small" />
@@ -109,12 +100,12 @@ const UsersList = () => {
                 <TextField fullWidth label="Email" inputRef={emailRef} size="small" />
             </Grid>
             <Grid item xs={12} sm={2}>
-                <TextField 
-                    select 
-                    fullWidth 
-                    label="Permissão" 
-                    value={role} 
-                    onChange={(e) => setRole(e.target.value)} 
+                <TextField
+                    select
+                    fullWidth
+                    label="Permissão"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
                     size="small"
                 >
                     <MenuItem value="">Todas</MenuItem>
@@ -128,7 +119,7 @@ const UsersList = () => {
             </Grid>
           </Grid>
         </Paper>
-          
+
         <Paper elevation={3}>
           <TableContainer>
             <Table>
@@ -150,8 +141,8 @@ const UsersList = () => {
                     <TableCell>{u.name}</TableCell>
                     <TableCell>{u.email}</TableCell>
                     <TableCell>
-                      <Chip 
-                        label={u.role === 'admin' ? "Administrador" : "Usuário"} 
+                      <Chip
+                        label={u.role === 'admin' ? "Administrador" : "Usuário"}
                         color={u.role === 'admin' ? "primary" : "default"}
                         size="small"
                       />
@@ -159,10 +150,10 @@ const UsersList = () => {
                     <TableCell align="right">
                       <Tooltip title={status.disabled ? status.text : "Alterar cargo"}>
                         <span>
-                          <Switch 
+                          <Switch
                             checked={u.role === 'admin'}
                             onChange={() => handleToggleAdmin(u)}
-                            disabled={status.disabled} 
+                            disabled={status.disabled}
                           />
                         </span>
                       </Tooltip>

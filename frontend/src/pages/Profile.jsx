@@ -6,7 +6,7 @@ import { AuthContext } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 
 const Profile = () => {
-  const { user, setUser } = useContext(AuthContext); // Precisamos atualizar o contexto se o nome mudar
+  const { user } = useContext(AuthContext);
   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
 
   useEffect(() => {
@@ -22,22 +22,18 @@ const Profile = () => {
 const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Ajuste aqui para garantir que pega 'user.id' (minúsculo, conforme o JSON do backend)
-      const userId = user.id || user.ID || user.user_id; 
-      
+      const userId = user.id || user.ID || user.user_id;
+
       const payload = { ...formData };
       if (payload.password === '') delete payload.password;
 
-      // Usa a variável userId garantida
       const response = await api.put(`/users/${userId}`, payload);
-      
+
       toast.success('Perfil atualizado com sucesso!');
-            
-      // Atualiza o contexto e localStorage com os novos dados (exceto senha)
+
       const updatedUser = { ...user, ...response.data.user };
       localStorage.setItem('user', JSON.stringify(updatedUser));
-      // Forçamos uma atualização simples no contexto (reload é uma opção radical, mas aqui vamos tentar manter o estado)
-      window.location.reload(); 
+      window.location.reload();
     } catch (error) {
       console.error(error);
       toast.error('Erro ao atualizar perfil.');

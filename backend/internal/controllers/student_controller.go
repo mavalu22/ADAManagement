@@ -8,13 +8,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Retorna o perfil do aluno e todo seu histórico acadêmico ordenado
 func GetStudentHistoryHandler(c *gin.Context) {
-	registration := c.Param("registration") // Vamos buscar pela MATRÍCULA, que é mais fácil de ler na URL
+	registration := c.Param("registration")
 
 	var student models.Student
 
-	// 1. Busca o Aluno e o Curso
 	if result := database.DB.
 		Preload("Course").
 		Where("registration = ?", registration).
@@ -23,13 +21,12 @@ func GetStudentHistoryHandler(c *gin.Context) {
 		return
 	}
 
-	// 2. Busca o Histórico (Records + Semestres)
 	var records []models.AcademicRecord
 	if result := database.DB.
 		Preload("Semester").
 		Where("student_id = ?", student.ID).
 		Joins("JOIN semesters ON semesters.id = academic_records.semester_id").
-		Order("semesters.code asc"). // Ordena cronologicamente (2025/1 -> 2025/2)
+		Order("semesters.code asc").
 		Find(&records); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar histórico"})
 		return

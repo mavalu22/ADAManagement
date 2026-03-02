@@ -21,18 +21,14 @@ const AcademicReport = () => {
   const [loading, setLoading] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Lista de cursos para o select dinâmico
   const [courses, setCourses] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState('');
 
-  // Refs para campos de texto
   const registrationRef = useRef(null);
   const studentNameRef = useRef(null);
 
-  // State do Select de Status
   const [status, setStatus] = useState(searchParams.get('status') || '');
 
-  // Carrega cursos uma única vez ao montar o componente
   useEffect(() => {
     api.get('/reports/courses')
        .then(res => setCourses(res.data))
@@ -46,7 +42,6 @@ const AcademicReport = () => {
     const params = new URLSearchParams();
     params.append('semester_id', selectedSemester);
 
-    // 1. Prioridade: Filtros da URL (Dashboard Actions)
     const mode = searchParams.get('mode');
     const maxPending = searchParams.get('max_pending');
     const urlStatus = searchParams.get('status');
@@ -54,7 +49,6 @@ const AcademicReport = () => {
     if (mode) params.append('mode', mode);
     if (maxPending) params.append('max_pending', maxPending);
 
-    // 2. Filtros Manuais (Inputs)
     const currentStatus = urlStatus || status;
 
     if (registrationRef.current?.value) params.append('registration', registrationRef.current.value);
@@ -73,7 +67,6 @@ const AcademicReport = () => {
     if (urlStatus) setStatus(urlStatus);
 
     fetchRecords();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSemester, searchParams]);
 
   const handleClear = () => {
@@ -84,7 +77,6 @@ const AcademicReport = () => {
     setSearchParams({});
   };
 
-  // Texto dinâmico do título caso venha do dashboard
   let title = `Relatório Acadêmico - ${selectedSemesterCode}`;
   if (searchParams.get('mode') === 'critical') title = `Relatório: Alunos em Situação Crítica (${selectedSemesterCode})`;
   if (searchParams.get('max_pending')) title = `Relatório: Possíveis Formandos (${selectedSemesterCode})`;

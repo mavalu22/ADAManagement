@@ -5,12 +5,10 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
-// Contexts
 import { AuthContext } from '../context/AuthContext';
-import { SemesterContext } from '../context/SemesterContext'; 
-import { ThemeContext } from '../context/ThemeContext'; // <--- NOVO
+import { SemesterContext } from '../context/SemesterContext';
+import { ThemeContext } from '../context/ThemeContext';
 
-// Ícones
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -23,8 +21,8 @@ import LightModeIcon from '@mui/icons-material/LightMode';
 const Header = () => {
   const { logout, user } = useContext(AuthContext);
   const { semesters, selectedSemester, changeSemester } = useContext(SemesterContext);
-  const { toggleColorMode, mode } = useContext(ThemeContext); // <--- Consome o contexto
-  
+  const { toggleColorMode, mode } = useContext(ThemeContext);
+
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
@@ -45,11 +43,11 @@ const Header = () => {
   const logoUrl = "/ufes-logo.png";
 
   return (
-    <AppBar position="static" elevation={0}> 
+    <AppBar position="static" elevation={0}>
       <Toolbar sx={{ py: 1 }}>
-        
-        <Box 
-            onClick={() => navigate('/home')} 
+
+        <Box
+            onClick={() => navigate('/home')}
             sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer', flexGrow: 1 }}
         >
              <Box
@@ -109,7 +107,7 @@ const Header = () => {
               filter: 'drop-shadow(0px 4px 20px rgba(0,0,0,0.1))',
               mt: 1.5,
               border: '1px solid',
-              borderColor: 'divider', // Usa a cor da borda do tema (dinâmico)
+              borderColor: 'divider',
               '& .MuiAvatar-root': { width: 32, height: 32, ml: -0.5, mr: 1 },
               '&:before': {
                 content: '""', display: 'block', position: 'absolute', top: 0, right: 14, width: 10, height: 10,
@@ -131,22 +129,21 @@ const Header = () => {
              Meu Perfil
           </MenuItem>
 
-          {/* --- TOGGLE DARK MODE --- */}
           <Divider sx={{ my: 1 }} />
-          <MenuItem onClick={(e) => e.stopPropagation()}> {/* Impede fechar ao clicar */}
+          <MenuItem onClick={(e) => e.stopPropagation()}>
              <ListItemIcon>
                 {mode === 'dark' ? <DarkModeIcon fontSize="small" /> : <LightModeIcon fontSize="small" />}
              </ListItemIcon>
              <Box sx={{ flexGrow: 1 }}>Modo Escuro</Box>
-             <Switch 
-                checked={mode === 'dark'} 
-                onChange={toggleColorMode} 
-                size="small" 
+             <Switch
+                checked={mode === 'dark'}
+                onChange={toggleColorMode}
+                size="small"
              />
           </MenuItem>
-          
+
           <Divider sx={{ my: 1 }} />
-          
+
           {user && user.role === 'admin' && (
             <div>
                 <MenuItem onClick={() => handleNavigate('/import')}>
@@ -160,7 +157,7 @@ const Header = () => {
                 <Divider sx={{ my: 1 }} />
             </div>
           )}
-          
+
           <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
             <ListItemIcon>
               <LogoutIcon fontSize="small" color="error" />

@@ -3,14 +3,11 @@ import { Box, Button, Container, TextField, Typography, Paper, Grid } from '@mui
 import api from '../services/api';
 import Header from '../components/Header';
 import { useNavigate } from 'react-router-dom';
-// IMPORTAÇÃO NOVA
 import { toast } from 'react-toastify';
 
 const RegisterUser = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
-
-  // Removemos o estado 'status' pois o popup substitui ele
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -18,19 +15,16 @@ const RegisterUser = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     try {
       await api.post('/register', formData);
-      
-      // 1. Popup de Sucesso
+
       toast.success(`Usuário ${formData.name} criado com sucesso!`);
-      
-      // 2. Redirecionamento Imediato para a Home
+
       navigate('/home');
-      
+
     } catch (error) {
       console.error(error);
-      // Popup de Erro
       toast.error('Erro ao cadastrar. Verifique se o e-mail já existe.');
     }
   };

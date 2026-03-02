@@ -14,7 +14,6 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-// Auxiliar para achar índice da coluna
 func getColIndex(headers []string, colName string) int {
 	for i, h := range headers {
 		if strings.EqualFold(strings.TrimSpace(h), colName) {
@@ -24,7 +23,6 @@ func getColIndex(headers []string, colName string) int {
 	return -1
 }
 
-// Função Principal que decide como ler baseado na extensão
 func ProcessFile(file multipart.File, filename string) error {
 	ext := strings.ToLower(filepath.Ext(filename))
 
@@ -52,35 +50,29 @@ func ProcessFile(file multipart.File, filename string) error {
 
 func readCSV(file multipart.File) ([][]string, error) {
 	reader := csv.NewReader(file)
-	reader.Comma = ';' // Padrão UFES
+	reader.Comma = ';'
 	reader.LazyQuotes = true
 	return reader.ReadAll()
 }
 
 func readXLSX(file multipart.File) ([][]string, error) {
-	// O excelize precisa do stream ou do arquivo em disco.
-	// Como estamos recebendo multipart, vamos abrir o reader diretamente.
 	f, err := excelize.OpenReader(file)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	// Pega a primeira aba (Sheet1 ou a que estiver ativa)
 	sheetName := f.GetSheetName(0)
 	if sheetName == "" {
 		return nil, errors.New("nenhuma aba encontrada no Excel")
 	}
 
-	// Lê todas as linhas
 	return f.GetRows(sheetName)
 }
 
-// Lógica de Negócio (Agnóstica de formato)
 func processRows(rows [][]string) error {
 	headers := rows[0]
 
-	// Mapeamento de Colunas
 	idxSemestre := getColIndex(headers, "PERIODO_BASE_ENQUADRAMENTO")
 	idxCodCurso := getColIndex(headers, "COD_CURSO")
 	idxNomeCurso := getColIndex(headers, "NOME_CURSO")
@@ -104,14 +96,11 @@ func processRows(rows [][]string) error {
 		return errors.New("formato de arquivo inválido: colunas essenciais não encontradas")
 	}
 
-	// Itera a partir da linha 1 (pula cabeçalho)
 	for _, record := range rows[1:] {
-		// Proteção contra linhas vazias no final do arquivo
 		if len(record) < idxMatricula {
 			continue
 		}
 
-		// --- CURSO ---
 		codCurso, _ := strconv.Atoi(safeGet(record, idxCodCurso))
 		var course models.Course
 		database.DB.Where(models.Course{Code: codCurso}).FirstOrCreate(&course)
@@ -126,11 +115,9 @@ func processRows(rows [][]string) error {
 			database.DB.Save(&course)
 		}
 
-		// --- SEMESTRE ---
 		var semester models.Semester
 		database.DB.FirstOrCreate(&semester, models.Semester{Code: safeGet(record, idxSemestre)})
 
-		// --- ALUNO ---
 		var student models.Student
 		matr := safeGet(record, idxMatricula)
 		database.DB.Where("registration = ?", matr).FirstOrInit(&student)
@@ -143,7 +130,6 @@ func processRows(rows [][]string) error {
 		student.CourseID = course.ID
 		database.DB.Save(&student)
 
-		// --- REGISTRO ---
 		var academicRecord models.AcademicRecord
 		database.DB.Where("student_id = ? AND semester_id = ?", student.ID, semester.ID).FirstOrInit(&academicRecord)
 
@@ -163,7 +149,6 @@ func processRows(rows [][]string) error {
 	return nil
 }
 
-// Evita crash se o índice não existir na linha (comum em CSV mal formatado)
 func safeGet(row []string, index int) string {
 	if index >= 0 && index < len(row) {
 		return row[index]

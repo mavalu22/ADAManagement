@@ -1,24 +1,21 @@
 import { alpha } from '@mui/material/styles';
 
-// --- Paleta Emerald ---
-const EMERALD       = '#059669'; // emerald-600 — primária light
-const EMERALD_DARK  = '#34D399'; // emerald-400 — primária dark
-const EMERALD_LIGHT = '#10B981'; // emerald-500
+const EMERALD       = '#059669';
+const EMERALD_DARK  = '#34D399';
+const EMERALD_LIGHT = '#10B981';
 
-// Light mode
-const LIGHT_BG        = '#F0FDF4'; // emerald-50
+const LIGHT_BG        = '#F0FDF4';
 const LIGHT_PAPER     = '#FFFFFF';
-const LIGHT_TEXT_PRI  = '#111827'; // gray-900
-const LIGHT_TEXT_SEC  = '#6B7280'; // gray-500
-const LIGHT_DIVIDER   = '#D1FAE5'; // emerald-100
+const LIGHT_TEXT_PRI  = '#111827';
+const LIGHT_TEXT_SEC  = '#6B7280';
+const LIGHT_DIVIDER   = '#D1FAE5';
 
-// Dark mode — verde-preto profundo
-const DARK_BG         = '#0A0F0D'; // verde-preto
-const DARK_PAPER      = '#111917'; // levemente mais claro
-const DARK_APPBAR     = '#0D1A10'; // entre BG e paper
-const DARK_TEXT_PRI   = '#ECFDF5'; // emerald-50
-const DARK_TEXT_SEC   = '#94A3B8'; // slate-400
-const DARK_DIVIDER    = '#1D2E23'; // borda verde escura
+const DARK_BG         = '#0A0F0D';
+const DARK_PAPER      = '#111917';
+const DARK_APPBAR     = '#0D1A10';
+const DARK_TEXT_PRI   = '#ECFDF5';
+const DARK_TEXT_SEC   = '#94A3B8';
+const DARK_DIVIDER    = '#1D2E23';
 
 export const getDesignTokens = (mode) => ({
   palette: {

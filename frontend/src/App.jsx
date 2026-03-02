@@ -2,17 +2,15 @@ import React, { useContext } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import CssBaseline from '@mui/material/CssBaseline';
 
-// Contexts
 import { AuthProvider, AuthContext } from './context/AuthContext';
 import { SemesterProvider } from './context/SemesterContext';
-import { ThemeContextProvider } from './context/ThemeContext'; // <--- IMPORTAÇÃO NOVA
+import { ThemeContextProvider } from './context/ThemeContext';
 
-// Pages
 import Login from './pages/Login';
 import Home from './pages/Home';
 import RegisterUser from './pages/RegisterUser';
 import Profile from './pages/Profile';
-import UsersList from './pages/UsersList'; // Verifique se o caminho está correto na sua pasta
+import UsersList from './pages/UsersList';
 import ImportData from './pages/ImportData';
 import AcademicReport from './pages/Reports/AcademicReport';
 import CoursesReport from './pages/Reports/CoursesReport';
@@ -21,7 +19,6 @@ import StudentProfile from './pages/StudentProfile';
 import StudentActions from './pages/StudentActions';
 import IndicatorsReport from './pages/Reports/IndicatorsReport';
 
-// React Toastify
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -41,12 +38,9 @@ const PrivateRoute = ({ children }) => {
 
 function App() {
   return (
-    // 1. Envolvemos tudo no ThemeContextProvider
     <ThemeContextProvider>
-      {/* CssBaseline agora pega as cores dinâmicas do contexto */}
       <CssBaseline />
-      
-      {/* Container dos Popups */}
+
       <ToastContainer position="top-right" autoClose={3000} />
 
       <AuthProvider>
@@ -54,50 +48,50 @@ function App() {
             <BrowserRouter>
             <Routes>
                 <Route path="/" element={<Login />} />
-                
-                <Route 
-                path="/home" 
+
+                <Route
+                path="/home"
                 element={
                     <PrivateRoute>
                     <Home />
                     </PrivateRoute>
-                } 
+                }
                 />
-                
-                <Route 
-                path="/register-user" 
+
+                <Route
+                path="/register-user"
                 element={
                     <PrivateRoute>
                     <RegisterUser />
                     </PrivateRoute>
-                } 
+                }
                 />
-                
-                <Route 
-                path="/profile" 
+
+                <Route
+                path="/profile"
                 element={
                     <PrivateRoute>
                     <Profile />
                     </PrivateRoute>
-                } 
+                }
                 />
-                
-                <Route 
-                path="/users" 
+
+                <Route
+                path="/users"
                 element={
                     <PrivateRoute>
                     <UsersList />
                     </PrivateRoute>
-                } 
+                }
                 />
-                
-                <Route 
-                path="/import" 
+
+                <Route
+                path="/import"
                 element={
                     <PrivateRoute>
                     <ImportData />
                     </PrivateRoute>
-                } 
+                }
                 />
                 <Route path="/reports/records" element={<PrivateRoute><AcademicReport /></PrivateRoute>} />
                 <Route path="/report/records" element={<PrivateRoute><AcademicReport /></PrivateRoute>} />
@@ -106,7 +100,7 @@ function App() {
                 <Route path="/students/:registration/actions" element={<PrivateRoute><StudentActions /></PrivateRoute>} />
                 <Route path="/students/:registration" element={<PrivateRoute><StudentProfile /></PrivateRoute>} />
                 <Route path="/reports/indicators" element={<PrivateRoute><IndicatorsReport /></PrivateRoute>} />
-            
+
             </Routes>
             </BrowserRouter>
         </SemesterProvider>

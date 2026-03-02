@@ -18,7 +18,7 @@ type RegisterInput struct {
 	Name     string `json:"name" binding:"required"`
 	Email    string `json:"email" binding:"required"`
 	Password string `json:"password" binding:"required"`
-	Role     string `json:"role"` // Opcional, default "user"
+	Role     string `json:"role"`
 }
 
 func LoginHandler(c *gin.Context) {
@@ -34,11 +34,10 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
-	// Retorna token E dados do usuário (nome, role)
 	c.JSON(http.StatusOK, gin.H{
 		"token": token,
 		"user": gin.H{
-			"id":    user.ID, // <--- ADICIONE ESTA LINHA
+			"id":    user.ID,
 			"name":  user.Name,
 			"email": user.Email,
 			"role":  user.Role,
@@ -65,7 +64,6 @@ func GetMeHandler(c *gin.Context) {
 }
 
 func RegisterHandler(c *gin.Context) {
-	// Verifica permissão (Admin)
 	role, exists := c.Get("role")
 	if !exists || role != "admin" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Apenas administradores podem criar novos usuários."})
@@ -78,15 +76,12 @@ func RegisterHandler(c *gin.Context) {
 		return
 	}
 
-	// Tenta criar
 	if err := services.CreateUser(input.Name, input.Email, input.Password, input.Role); err != nil {
-		// Se o erro for de duplicidade, retorna 409 (Conflict)
 		if err.Error() == "este e-mail já está cadastrado no sistema" {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 			return
 		}
 
-		// Outros erros (banco, hash, etc)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao criar usuário"})
 		return
 	}
