@@ -8,6 +8,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
+import SchoolIcon from '@mui/icons-material/School';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
 import Header from '../../components/Header';
@@ -175,6 +176,7 @@ const AcademicReport = () => {
               {records.map((row) => {
                  const progress = row.total_hours > 0 ? (row.integralized_hours / row.total_hours) * 100 : 0;
                  const isRegular = row.status === 'Em regularidade';
+                 const isPaePic = row.status === 'PAE' || row.status === 'PIC';
                  return (
                   <TableRow key={row.ID} hover>
                     <TableCell>{row.student?.registration}</TableCell>
@@ -201,6 +203,17 @@ const AcademicReport = () => {
                                     onClick={() => navigate(`/students/${row.student?.registration}/actions?semester_id=${selectedSemester}`)}
                                 >
                                     <AssignmentIcon />
+                                </IconButton>
+                            </span>
+                        </Tooltip>
+                        <Tooltip title={isPaePic ? 'Ver/Registrar plano de integralização' : 'Disponível apenas para PAE/PIC'}>
+                            <span>
+                                <IconButton
+                                    color="secondary"
+                                    disabled={!isPaePic}
+                                    onClick={() => navigate(`/students/${row.student?.registration}/plan?semester_id=${selectedSemester}&status=${row.status}`)}
+                                >
+                                    <SchoolIcon />
                                 </IconButton>
                             </span>
                         </Tooltip>
