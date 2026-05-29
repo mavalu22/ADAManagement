@@ -17,7 +17,6 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
 
 const Header = () => {
   const { logout, user } = useContext(AuthContext);
@@ -144,11 +143,6 @@ const Header = () => {
           </MenuItem>
 
           <Divider sx={{ my: 1 }} />
-
-          <MenuItem onClick={() => handleNavigate('/disciplines')}>
-            <ListItemIcon><MenuBookIcon fontSize="small" /></ListItemIcon>
-            Disciplinas
-          </MenuItem>
 
           {user && user.role === 'admin' && (
             <div>
