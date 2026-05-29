@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useContext } from 'react';
 import {
   Box, Container, Paper, Typography, Button, IconButton, Tooltip,
-  Chip, Divider, LinearProgress, Checkbox, FormControlLabel,
-  FormGroup, Grid
+  Chip, Divider, LinearProgress, Select, MenuItem, FormControl,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save';
+import DeleteIcon from '@mui/icons-material/Delete';
+import AddIcon from '@mui/icons-material/Add';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
@@ -23,7 +25,8 @@ const StudyPlan = () => {
 
   const [studentName, setStudentName] = useState('');
   const [allDisciplines, setAllDisciplines] = useState([]);
-  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [rows, setRows] = useState([]);
+  const [addingId, setAddingId] = useState('');
   const [existingPlan, setExistingPlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -36,6 +39,8 @@ const StudyPlan = () => {
       : 'Plano de integralização curricular';
 
   const statusColor = status === 'PAE' || status === 'PIC' ? 'warning' : 'default';
+
+  const availableDisciplines = allDisciplines.filter(d => !rows.find(r => r.ID === d.ID));
 
   useEffect(() => {
     if (!semesterId) return;
@@ -57,28 +62,30 @@ const StudyPlan = () => {
         setAllDisciplines(disciplinesRes.data || []);
         if (planRes.data) {
           setExistingPlan(planRes.data);
-          const ids = new Set((planRes.data.disciplines || []).map(d => d.ID));
-          setSelectedIds(ids);
+          setRows(planRes.data.disciplines || []);
         }
       })
       .catch(() => toast.error('Erro ao carregar dados do plano.'))
       .finally(() => setLoading(false));
   }, [registration, semesterId]);
 
-  const toggleDiscipline = (id) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const handleAddRow = () => {
+    if (!addingId) return;
+    const discipline = allDisciplines.find(d => d.ID === addingId);
+    if (!discipline) return;
+    setRows(prev => [...prev, discipline]);
+    setAddingId('');
+  };
+
+  const handleRemoveRow = (id) => {
+    setRows(prev => prev.filter(r => r.ID !== id));
   };
 
   const handleSave = async () => {
     setSaving(true);
     const body = {
       semester_id: Number(semesterId),
-      discipline_ids: Array.from(selectedIds),
+      discipline_ids: rows.map(r => r.ID),
     };
     try {
       if (existingPlan) {
@@ -102,8 +109,8 @@ const StudyPlan = () => {
       <Container maxWidth="md" sx={{ mt: 4 }}>
 
         <Paper sx={{ p: 3, mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-            <Tooltip title="Voltar ao Relatório Acadêmico">
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Tooltip title="Voltar">
               <IconButton onClick={() => navigate(-1)}>
                 <ArrowBackIcon />
               </IconButton>
@@ -132,39 +139,82 @@ const StudyPlan = () => {
                 Disciplinas Planejadas
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {selectedIds.size} selecionada{selectedIds.size !== 1 ? 's' : ''}
+                {rows.length} {rows.length === 1 ? 'disciplina' : 'disciplinas'}
               </Typography>
             </Box>
             <Divider sx={{ mb: 2 }} />
 
-            {allDisciplines.length === 0 ? (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                Nenhuma disciplina cadastrada. Acesse a tela de Disciplinas para cadastrar.
-              </Typography>
-            ) : (
-              <FormGroup>
-                <Grid container spacing={1}>
-                  {allDisciplines.map(d => (
-                    <Grid item xs={12} sm={6} key={d.ID}>
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={selectedIds.has(d.ID)}
-                            onChange={() => toggleDiscipline(d.ID)}
-                            size="small"
-                          />
-                        }
-                        label={
-                          <Typography variant="body2">
-                            <b>{d.code}</b> — {d.name}
-                          </Typography>
-                        }
-                      />
-                    </Grid>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ width: 160, fontWeight: 700 }}>Código</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Disciplina</TableCell>
+                    <TableCell sx={{ width: 56 }} />
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {rows.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                        Nenhuma disciplina adicionada.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {rows.map(d => (
+                    <TableRow key={d.ID} hover>
+                      <TableCell>{d.code}</TableCell>
+                      <TableCell>{d.name}</TableCell>
+                      <TableCell align="center">
+                        <Tooltip title="Remover">
+                          <IconButton size="small" color="error" onClick={() => handleRemoveRow(d.ID)}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </Grid>
-              </FormGroup>
-            )}
+
+                  <TableRow>
+                    <TableCell colSpan={2} sx={{ pt: 1.5, pb: 1 }}>
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={addingId}
+                          onChange={e => setAddingId(e.target.value)}
+                          displayEmpty
+                          disabled={availableDisciplines.length === 0}
+                        >
+                          <MenuItem value="" disabled>
+                            {availableDisciplines.length === 0
+                              ? 'Todas as disciplinas já adicionadas'
+                              : 'Selecione uma disciplina...'}
+                          </MenuItem>
+                          {availableDisciplines.map(d => (
+                            <MenuItem key={d.ID} value={d.ID}>
+                              {d.code} — {d.name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </TableCell>
+                    <TableCell align="center" sx={{ pt: 1.5, pb: 1 }}>
+                      <Tooltip title="Adicionar">
+                        <span>
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={handleAddRow}
+                            disabled={!addingId}
+                          >
+                            <AddIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
 
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
               <Button
