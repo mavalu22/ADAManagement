@@ -32,6 +32,15 @@ func SetupRoutes(r *gin.Engine) {
 			protected.POST("/students/:registration/actions", controllers.CreateStudentActionHandler)
 			protected.PUT("/actions/:id", controllers.UpdateStudentActionHandler)
 			protected.DELETE("/actions/:id", controllers.DeleteStudentActionHandler)
+
+			protected.GET("/disciplines", controllers.GetDisciplinesHandler)
+			protected.POST("/disciplines", controllers.CreateDisciplineHandler)
+			protected.PUT("/disciplines/:id", controllers.UpdateDisciplineHandler)
+			protected.DELETE("/disciplines/:id", controllers.DeleteDisciplineHandler)
+
+			protected.GET("/students/:registration/plan", controllers.GetStudyPlanHandler)
+			protected.POST("/students/:registration/plan", controllers.CreateStudyPlanHandler)
+			protected.PUT("/students/:registration/plan", controllers.UpdateStudyPlanHandler)
 		}
 	}
 }
