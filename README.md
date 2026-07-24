@@ -164,8 +164,8 @@ Arquitetura em camadas sobre o estilo cliente-servidor, com comunicação por HT
 │  Go 1.24 · Gin · GORM · JWT · BCrypt                     │
 │  Render Web Service                                      │
 │                                                          │
-│  routes ─▶ middlewares ─▶ controllers ─▶ services        │
-│                                  └────────▶ models       │
+│  routes ─▶ middlewares ─▶ controllers ─▶ services     │
+│                                  └────────▶ models      │
 └───────────────────────────┬──────────────────────────────┘
                             │  GORM / driver pgx · SSL
 ┌───────────────────────────▼──────────────────────────────┐
