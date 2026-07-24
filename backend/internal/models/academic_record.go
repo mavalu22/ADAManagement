@@ -11,11 +11,11 @@ type AcademicRecord struct {
 	SemesterID uint     `json:"semester_id" gorm:"uniqueIndex:idx_student_semester"`
 	Semester   Semester `json:"semester" gorm:"foreignKey:SemesterID"`
 
-	Status            string `json:"status"`
+	Status            string `json:"status" gorm:"index"` // enquadramento; filtrado em relatórios e dashboard
 	StatusDetail      string `json:"status_detail"`
 	IntegralizedHours int    `json:"integralized_hours"`
 	TotalHours        int    `json:"total_hours"`
 	PendingObligatory int    `json:"pending_obligatory"`
 	SemestersNoHours  int    `json:"semesters_no_hours"`
-	Locks             int    `json:"locks"`
+	Locks             int    `json:"locks"` // trancamentos de matrícula (coluna NUM_TRANCAMENTOS)
 }

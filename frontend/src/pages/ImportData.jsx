@@ -59,7 +59,7 @@ const ImportData = () => {
     setStage('uploading');
 
     try {
-      await api.post("/upload", formData, {
+      const res = await api.post("/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (e) => {
           const uploadPercent = e.total
@@ -79,7 +79,17 @@ const ImportData = () => {
 
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      toast.success("Dados importados com sucesso!");
+      const summary = res.data?.summary;
+      if (summary) {
+        const skipped = summary.skipped_rows
+          ? `, ${summary.skipped_rows} ignorado${summary.skipped_rows === 1 ? '' : 's'}`
+          : '';
+        toast.success(
+          `Importação concluída: ${summary.records_created} novos, ${summary.records_updated} atualizados${skipped}.`
+        );
+      } else {
+        toast.success("Dados importados com sucesso!");
+      }
       setFile(null);
       refreshSemesters();
 

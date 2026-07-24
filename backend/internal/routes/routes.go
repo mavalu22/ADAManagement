@@ -1,46 +1,72 @@
 package routes
 
 import (
+	"github.com/gin-gonic/gin"
+
 	"adamanagement/backend/internal/controllers"
 	"adamanagement/backend/internal/middlewares"
-
-	"github.com/gin-gonic/gin"
 )
 
-func SetupRoutes(r *gin.Engine) {
-	api := r.Group("/api")
+// Handlers agrupa os handlers HTTP montados pelo roteador.
+type Handlers struct {
+	Auth        *controllers.AuthHandler
+	Users       *controllers.UserHandler
+	Import      *controllers.ImportHandler
+	Reports     *controllers.ReportHandler
+	Indicators  *controllers.IndicatorsHandler
+	Students    *controllers.StudentHandler
+	Actions     *controllers.ActionHandler
+	Disciplines *controllers.DisciplineHandler
+	Plans       *controllers.StudyPlanHandler
+}
+
+// Register monta a API em /api/v1 e mantém /api como alias de
+// compatibilidade para clientes anteriores ao versionamento.
+func Register(r *gin.Engine, h Handlers, jwtSecret string) {
+	register(r.Group("/api"), h, jwtSecret)
+	register(r.Group("/api/v1"), h, jwtSecret)
+}
+
+func register(api *gin.RouterGroup, h Handlers, jwtSecret string) {
+	api.POST("/login", h.Auth.Login)
+
+	protected := api.Group("/")
+	protected.Use(middlewares.Auth(jwtSecret))
 	{
-		api.POST("/login", controllers.LoginHandler)
+		protected.GET("/me", h.Auth.Me)
+		protected.PUT("/users/:id", h.Users.Update) // edição do próprio perfil; regras no service
 
-		protected := api.Group("/")
-		protected.Use(middlewares.AuthMiddleware())
+		protected.GET("/semesters", h.Reports.Semesters)
+		protected.GET("/reports/records", h.Reports.Records)
+		protected.GET("/reports/courses", h.Reports.Courses)
+		protected.GET("/reports/students", h.Reports.Students)
+		protected.GET("/reports/dashboard", h.Indicators.Dashboard)
+
+		protected.GET("/students/:registration/history", h.Students.History)
+
+		protected.GET("/students/:registration/actions", h.Actions.List)
+		protected.POST("/students/:registration/actions", h.Actions.Create)
+		protected.PUT("/actions/:id", h.Actions.Update)
+		protected.DELETE("/actions/:id", h.Actions.Delete)
+
+		protected.GET("/disciplines", h.Disciplines.List)
+		protected.POST("/disciplines", h.Disciplines.Create)
+		protected.PUT("/disciplines/:id", h.Disciplines.Update)
+		protected.DELETE("/disciplines/:id", h.Disciplines.Delete)
+
+		protected.GET("/students/:registration/plan", h.Plans.Get)
+		protected.POST("/students/:registration/plan", h.Plans.Create)
+		protected.PUT("/students/:registration/plan", h.Plans.Update)
+
+		// Funções administrativas: o papel é verificado no servidor,
+		// não apenas ocultado na interface.
+		admin := protected.Group("/")
+		admin.Use(middlewares.RequireRole("admin"))
 		{
-			protected.GET("/me", controllers.GetMeHandler)
-			protected.POST("/register", controllers.RegisterHandler)
-
-			protected.GET("/users", controllers.GetUsersHandler)
-			protected.PUT("/users/:id", controllers.UpdateUserHandler)
-			protected.DELETE("/users/:id", controllers.DeleteUserHandler)
-			protected.POST("/upload", controllers.UploadCSVHandler)
-			protected.GET("/semesters", controllers.GetSemestersHandler)
-			protected.GET("/reports/records", controllers.GetAcademicRecordsReportHandler)
-			protected.GET("/reports/courses", controllers.GetCoursesReportHandler)
-			protected.GET("/reports/students", controllers.GetStudentsReportHandler)
-			protected.GET("/students/:registration/history", controllers.GetStudentHistoryHandler)
-			protected.GET("/reports/dashboard", controllers.GetDashboardIndicatorsHandler)
-			protected.GET("/students/:registration/actions", controllers.GetStudentActionsHandler)
-			protected.POST("/students/:registration/actions", controllers.CreateStudentActionHandler)
-			protected.PUT("/actions/:id", controllers.UpdateStudentActionHandler)
-			protected.DELETE("/actions/:id", controllers.DeleteStudentActionHandler)
-
-			protected.GET("/disciplines", controllers.GetDisciplinesHandler)
-			protected.POST("/disciplines", controllers.CreateDisciplineHandler)
-			protected.PUT("/disciplines/:id", controllers.UpdateDisciplineHandler)
-			protected.DELETE("/disciplines/:id", controllers.DeleteDisciplineHandler)
-
-			protected.GET("/students/:registration/plan", controllers.GetStudyPlanHandler)
-			protected.POST("/students/:registration/plan", controllers.CreateStudyPlanHandler)
-			protected.PUT("/students/:registration/plan", controllers.UpdateStudyPlanHandler)
+			admin.POST("/register", h.Auth.Register)
+			admin.POST("/upload", h.Import.Upload)
+			admin.GET("/users", h.Users.List)
+			admin.DELETE("/users/:id", h.Users.Delete)
 		}
 	}
 }

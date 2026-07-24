@@ -1,111 +1,87 @@
 package controllers
 
 import (
-	"adamanagement/backend/internal/models"
-	"adamanagement/backend/pkg/database"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
+
+	"adamanagement/backend/internal/controllers/dto"
+	"adamanagement/backend/internal/middlewares"
+	"adamanagement/backend/internal/services"
 )
 
-func GetUsersHandler(c *gin.Context) {
-	query := database.DB.Model(&models.User{})
-
-	if name := c.Query("name"); name != "" {
-		query = query.Where("name LIKE ?", "%"+name+"%")
-	}
-
-	if email := c.Query("email"); email != "" {
-		query = query.Where("email LIKE ?", "%"+email+"%")
-	}
-
-	if role := c.Query("role"); role != "" {
-		query = query.Where("role = ?", role)
-	}
-
-	var users []models.User
-	if err := query.Omit("password").Find(&users).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar usuários"})
-		return
-	}
-
-	c.JSON(http.StatusOK, users)
+type UserHandler struct {
+	svc *services.UserService
 }
 
-func UpdateUserHandler(c *gin.Context) {
-	id := c.Param("id")
-	requesterRole := c.GetString("role")
-	requesterID := c.GetUint("userID")
+func NewUserHandler(svc *services.UserService) *UserHandler { return &UserHandler{svc: svc} }
 
-	var user models.User
-	if err := database.DB.First(&user, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
+func (h *UserHandler) List(c *gin.Context) {
+	users, err := h.svc.List(services.UserListFilter{
+		Name:  c.Query("name"),
+		Email: c.Query("email"),
+		Role:  c.Query("role"),
+	})
+	if err != nil {
+		respondError(c, err)
 		return
 	}
-
-	if requesterRole != "admin" && uint(user.ID) != requesterID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Sem permissão"})
-		return
-	}
-
-	var input struct {
-		Name     string `json:"name"`
-		Email    string `json:"email"`
-		Password string `json:"password"`
-		Role     string `json:"role"`
-	}
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if input.Name != "" {
-		user.Name = input.Name
-	}
-	if input.Email != "" {
-		user.Email = input.Email
-	}
-
-	if input.Password != "" {
-		hash, _ := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
-		user.Password = string(hash)
-	}
-
-	if input.Role != "" {
-		if requesterRole == "admin" {
-			if user.ID == 1 && input.Role != "admin" {
-				c.JSON(http.StatusForbidden, gin.H{"error": "O Admin Principal não pode ser rebaixado."})
-				return
-			}
-			user.Role = input.Role
-		}
-	}
-
-	database.DB.Save(&user)
-	c.JSON(http.StatusOK, gin.H{"message": "Usuário atualizado", "user": user})
+	c.JSON(http.StatusOK, dto.NewUsers(users))
 }
 
-func DeleteUserHandler(c *gin.Context) {
-	id := c.Param("id")
-	requesterID := c.GetUint("userID")
+type userUpdateInput struct {
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	Role     string `json:"role"`
+}
 
-	var user models.User
-	if err := database.DB.First(&user, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
+func (h *UserHandler) Update(c *gin.Context) {
+	targetID, ok := parseIDParam(c)
+	if !ok {
 		return
 	}
 
-	if user.ID == 1 {
-		c.JSON(http.StatusForbidden, gin.H{"error": "O Admin Principal não pode ser excluído."})
+	requesterID, ok := middlewares.UserID(c)
+	if !ok {
+		respondError(c, services.Unauthorized("sessão inválida"))
 		return
 	}
 
-	if user.ID == requesterID {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Você não pode deletar a si mesmo."})
+	var in userUpdateInput
+	if !bindJSON(c, &in) {
 		return
 	}
 
-	database.DB.Delete(&user)
+	user, err := h.svc.Update(requesterID, middlewares.Role(c), targetID, services.UserUpdateInput{
+		Name:     in.Name,
+		Email:    in.Email,
+		Password: in.Password,
+		Role:     in.Role,
+	})
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Usuário atualizado", "user": dto.NewUser(*user)})
+}
+
+func (h *UserHandler) Delete(c *gin.Context) {
+	targetID, ok := parseIDParam(c)
+	if !ok {
+		return
+	}
+
+	requesterID, ok := middlewares.UserID(c)
+	if !ok {
+		respondError(c, services.Unauthorized("sessão inválida"))
+		return
+	}
+
+	if err := h.svc.Delete(requesterID, targetID); err != nil {
+		respondError(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "Usuário deletado"})
 }

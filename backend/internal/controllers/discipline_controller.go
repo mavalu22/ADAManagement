@@ -1,104 +1,82 @@
 package controllers
 
 import (
-	"adamanagement/backend/internal/models"
-	"adamanagement/backend/pkg/database"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
+
+	"adamanagement/backend/internal/controllers/dto"
+	"adamanagement/backend/internal/services"
 )
 
-func GetDisciplinesHandler(c *gin.Context) {
-	var disciplines []models.Discipline
-	if err := database.DB.Order("name asc").Find(&disciplines).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar disciplinas"})
-		return
-	}
-	c.JSON(http.StatusOK, disciplines)
+type DisciplineHandler struct {
+	svc *services.DisciplineService
 }
 
-func CreateDisciplineHandler(c *gin.Context) {
-	var body struct {
-		Code string `json:"code" binding:"required"`
-		Name string `json:"name" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos: " + err.Error()})
-		return
-	}
-
-	var existing models.Discipline
-	if err := database.DB.Where("code = ?", body.Code).First(&existing).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "Código de disciplina já cadastrado"})
-		return
-	}
-
-	discipline := models.Discipline{Code: body.Code, Name: body.Name}
-	if err := database.DB.Create(&discipline).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao criar disciplina"})
-		return
-	}
-	c.JSON(http.StatusCreated, discipline)
+func NewDisciplineHandler(svc *services.DisciplineService) *DisciplineHandler {
+	return &DisciplineHandler{svc: svc}
 }
 
-func UpdateDisciplineHandler(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+func (h *DisciplineHandler) List(c *gin.Context) {
+	disciplines, err := h.svc.List()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+		respondError(c, err)
 		return
 	}
-
-	var discipline models.Discipline
-	if err := database.DB.First(&discipline, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Disciplina não encontrada"})
-		return
-	}
-
-	var body struct {
-		Code *string `json:"code"`
-		Name *string `json:"name"`
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos: " + err.Error()})
-		return
-	}
-
-	updates := map[string]interface{}{}
-	if body.Code != nil {
-		updates["code"] = *body.Code
-	}
-	if body.Name != nil {
-		updates["name"] = *body.Name
-	}
-
-	if len(updates) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Nenhum campo fornecido para atualização"})
-		return
-	}
-
-	if err := database.DB.Model(&discipline).Updates(updates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar disciplina"})
-		return
-	}
-	c.JSON(http.StatusOK, discipline)
+	c.JSON(http.StatusOK, dto.NewDisciplines(disciplines))
 }
 
-func DeleteDisciplineHandler(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+type disciplineCreateInput struct {
+	Code string `json:"code" binding:"required"`
+	Name string `json:"name" binding:"required"`
+}
+
+func (h *DisciplineHandler) Create(c *gin.Context) {
+	var in disciplineCreateInput
+	if !bindJSON(c, &in) {
+		return
+	}
+
+	discipline, err := h.svc.Create(in.Code, in.Name)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, dto.NewDiscipline(*discipline))
+}
+
+type disciplineUpdateInput struct {
+	Code *string `json:"code"`
+	Name *string `json:"name"`
+}
+
+func (h *DisciplineHandler) Update(c *gin.Context) {
+	id, ok := parseIDParam(c)
+	if !ok {
 		return
 	}
 
-	var discipline models.Discipline
-	if err := database.DB.First(&discipline, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Disciplina não encontrada"})
+	var in disciplineUpdateInput
+	if !bindJSON(c, &in) {
 		return
 	}
 
-	if err := database.DB.Delete(&discipline).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao remover disciplina"})
+	discipline, err := h.svc.Update(id, in.Code, in.Name)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, dto.NewDiscipline(*discipline))
+}
+
+func (h *DisciplineHandler) Delete(c *gin.Context) {
+	id, ok := parseIDParam(c)
+	if !ok {
+		return
+	}
+
+	if err := h.svc.Delete(id); err != nil {
+		respondError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Disciplina removida com sucesso"})

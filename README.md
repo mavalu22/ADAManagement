@@ -30,6 +30,7 @@ Trabalho de Conclusão de Curso em Ciência da Computação — Departamento de 
 - [Como rodar localmente](#como-rodar-localmente)
 - [Variáveis de ambiente](#variáveis-de-ambiente)
 - [Deploy](#deploy)
+- [Testes e CI](#testes-e-ci)
 - [Limitações conhecidas](#limitações-conhecidas)
 - [Documentação do TCC no repositório](#documentação-do-tcc-no-repositório)
 
@@ -73,8 +74,9 @@ O desenvolvimento seguiu um modelo iterativo e incremental, com validação cont
 - Upload de arquivos `.csv` (delimitado por `;`) ou `.xlsx`, no layout de exportação da UFES.
 - Cabeçalhos reconhecidos por nome, sem diferenciar maiúsculas/minúsculas e ignorando espaços nas bordas.
 - Estratégia **upsert** pela chave natural `matrícula + semestre`; reimportar a mesma planilha atualiza os registros sem duplicar.
+- **Processamento transacional:** ou a planilha inteira é gravada, ou nada é alterado — um erro no meio do arquivo não deixa o banco pela metade.
 - Semestres, cursos e alunos ainda não cadastrados são criados automaticamente durante o processamento.
-- Indicador de progresso durante o envio (ver [Limitações conhecidas](#limitações-conhecidas)).
+- Ao final, a interface exibe o resumo real da importação: registros novos, atualizados e linhas ignoradas.
 
 ### Relatório acadêmico
 - Situação de cada aluno no semestre selecionado: matrícula, nome, curso, status, detalhe do acompanhamento, percentual de carga horária concluída (`integralized_hours / total_hours`) e número de disciplinas obrigatórias pendentes.
@@ -138,10 +140,10 @@ O modelo de dados tem **dois papéis**: `admin` e `user`. O "Admin Master" não 
 | Perfil | Como é identificado | O que o diferencia |
 |---|---|---|
 | **Admin Master** | `users.id = 1` | Não pode ser excluído nem rebaixado. É semeado na primeira execução a partir de `ADMIN_EMAIL`, `ADMIN_PASSWORD` e `ADMIN_NAME`. |
-| **Administrador** | `role = "admin"` | Vê e usa os módulos de importação de dados e de gestão de usuários; é o único perfil autorizado a criar usuários. |
+| **Administrador** | `role = "admin"` | Único perfil aceito pelo servidor nas rotas administrativas: importação de planilhas e cadastro, listagem e exclusão de usuários. |
 | **Usuário comum** | `role = "user"` | Consulta relatórios, indicadores e históricos; registra ações, planos e disciplinas pela interface. Não vê os módulos administrativos. |
 
-> A separação entre perfis é aplicada principalmente na interface. No servidor, apenas a criação de usuários verifica o papel — veja [Limitações conhecidas](#limitações-conhecidas).
+> A separação entre perfis é aplicada **no servidor**: as rotas administrativas passam pelo middleware `RequireRole("admin")`, além de a interface ocultar os módulos correspondentes para usuários comuns.
 
 ---
 
@@ -176,15 +178,17 @@ Arquitetura em camadas sobre o estilo cliente-servidor, com comunicação por HT
 
 | Camada | Papel |
 |---|---|
-| `routes/` | Define o grupo `/api`, separa a rota pública de login das rotas protegidas e aplica o middleware de autenticação. |
-| `middlewares/` | Valida o token JWT e publica `userID` e `role` no contexto da requisição. |
-| `controllers/` | Recebem e validam a requisição HTTP, aplicam as regras de negócio e montam a resposta. |
-| `services/` | Autenticação, criação de usuários, *seed* do administrador e processamento dos arquivos de importação. |
-| `models/` | *Structs* GORM que descrevem as tabelas, os relacionamentos e os índices únicos. |
-| `pkg/database/` | Abertura e compartilhamento da conexão com o PostgreSQL. |
-| `config/` | Carregamento das variáveis de ambiente via Viper (`.env` ou ambiente do sistema). |
+| `app/` | *Composition root*: carrega a configuração, conecta o banco, executa o `AutoMigrate`, semeia o administrador e injeta as dependências (config → db → services → handlers → rotas). Também expõe `/health` e faz o desligamento gracioso do servidor. |
+| `routes/` | Monta a API em `/api/v1` (com alias `/api`) e separa rota pública, rotas autenticadas e o grupo administrativo. |
+| `middlewares/` | `Auth` valida o token JWT (somente HS256) e publica `userID`/`role` tipados no contexto; `RequireRole` restringe o grupo administrativo. |
+| `controllers/` | Traduzem HTTP ↔ domínio: fazem o *binding* da requisição, chamam o service e serializam a resposta via DTOs. Não acessam o banco. |
+| `controllers/dto/` | Contratos de resposta da API, desacoplados do esquema do banco (sem `deleted_at` e demais campos internos). |
+| `services/` | Toda a regra de negócio e o acesso a dados, um service por agregado; recebem o `*gorm.DB` por construtor (sem estado global) e devolvem erros de domínio tipados. |
+| `models/` | *Structs* GORM que descrevem as tabelas, os relacionamentos e os índices. |
+| `database/` | Abertura da conexão com o PostgreSQL, retornada ao chamador. |
+| `config/` | Carregamento e validação das variáveis de ambiente — o servidor não sobe com `JWT_SECRET` ou `DATABASE_URL` ausentes. |
 
-O CORS é configurado diretamente em `cmd/server/main.go`, com lista branca de origens (`http://localhost:5173` e a URL do frontend em produção).
+Os erros de domínio são sentinelas tipadas (`ErrNotFound`, `ErrConflict`, `ErrForbidden`…) definidas nos services e traduzidas para HTTP em um único ponto (`respondError`); violações de índice único do PostgreSQL viram HTTP 409 sem consultas *check-then-act*. O CORS usa lista branca definida pela variável `ALLOWED_ORIGINS` (padrão: `http://localhost:5173` e a URL do frontend em produção).
 
 **Frontend — estado global**
 
@@ -239,28 +243,41 @@ O CORS é configurado diretamente em `cmd/server/main.go`, com lista branca de o
 ```
 ADAManagement/
 ├── backend/
-│   ├── cmd/server/main.go            # Ponto de entrada: config, AutoMigrate, seed, CORS, rotas
-│   ├── config/config.go              # Carregamento de variáveis de ambiente (Viper)
+│   ├── cmd/server/main.go            # Ponto de entrada mínimo: chama app.Run()
 │   ├── internal/
-│   │   ├── controllers/
+│   │   ├── app/app.go                # Composition root: config → db → services → handlers → servidor
+│   │   ├── config/config.go          # Variáveis de ambiente validadas (Viper)
+│   │   ├── database/postgres.go      # Conexão com o PostgreSQL (sem estado global)
+│   │   ├── controllers/              # Handlers HTTP — tradução HTTP ↔ domínio
+│   │   │   ├── respond.go               # respondError, bindJSON, paginação
+│   │   │   ├── dto/dto.go               # contratos de resposta da API
 │   │   │   ├── auth_controller.go       # login, /me, cadastro de usuário
-│   │   │   ├── user_controller.go       # listagem, edição e exclusão de usuários
-│   │   │   ├── import_controller.go     # upload da planilha
-│   │   │   ├── report_controller.go     # semestres, registros, cursos, alunos
-│   │   │   ├── indicators_controller.go # dados do painel de indicadores
-│   │   │   ├── student_controller.go    # histórico individual
-│   │   │   ├── action_controller.go     # ações de acompanhamento
-│   │   │   ├── discipline_controller.go # CRUD de disciplinas
-│   │   │   └── study_plan_controller.go # plano de integralização
-│   │   ├── middlewares/auth_middleware.go
-│   │   ├── models/                   # user, course, semester, student,
-│   │   │                             # academic_record, student_action,
-│   │   │                             # discipline, study_plan
-│   │   ├── routes/routes.go
-│   │   └── services/
-│   │       ├── auth_service.go       # login, criação de usuário, seed do admin
-│   │       └── import_service.go     # leitura de CSV/XLSX e upsert dos registros
-│   ├── pkg/database/postgres.go
+│   │   │   ├── user_controller.go
+│   │   │   ├── import_controller.go
+│   │   │   ├── report_controller.go
+│   │   │   ├── indicators_controller.go
+│   │   │   ├── student_controller.go
+│   │   │   ├── action_controller.go
+│   │   │   ├── discipline_controller.go
+│   │   │   └── study_plan_controller.go
+│   │   ├── middlewares/
+│   │   │   ├── auth_middleware.go       # JWT (HS256) + userID/role tipados no contexto
+│   │   │   └── require_role.go          # RBAC das rotas administrativas
+│   │   ├── models/                   # user, course, semester, student, academic_record,
+│   │   │                             # student_action, discipline, study_plan + constantes de status
+│   │   ├── routes/routes.go          # /api/v1 (alias /api); grupos público/autenticado/admin
+│   │   └── services/                 # Regras de negócio e acesso a dados (um por agregado)
+│   │       ├── errors.go                # sentinelas de erro do domínio
+│   │       ├── rules.go                 # RN02/RN03: aluno crítico e próximo da formatura
+│   │       ├── auth_service.go          # login, JWT, seed do admin
+│   │       ├── user_service.go
+│   │       ├── import_service.go        # parse testável + persistência transacional
+│   │       ├── report_service.go
+│   │       ├── indicators_service.go
+│   │       ├── student_service.go
+│   │       ├── action_service.go
+│   │       ├── discipline_service.go
+│   │       └── study_plan_service.go
 │   ├── .env                          # não versionado
 │   ├── .env.example
 │   ├── go.mod
@@ -298,6 +315,7 @@ ADAManagement/
 │   ├── package.json
 │   └── vite.config.ts
 │
+├── .github/workflows/ci.yml          # CI: gofmt, go vet, testes e builds
 ├── diagrama_arquitetura.html         # diagramas usados na monografia
 ├── diagrama_casos_de_uso.html
 ├── diagrama_er.html
@@ -310,6 +328,8 @@ ADAManagement/
 ## Modelo de dados
 
 Todas as tabelas herdam de `gorm.Model`, portanto possuem `id`, `created_at`, `updated_at` e `deleted_at` (exclusão lógica). O esquema é criado e sincronizado por `AutoMigrate` na inicialização do servidor.
+
+Duas exceções à exclusão lógica: **usuários** e **disciplinas** são removidos fisicamente (*hard delete*), pois seus campos únicos (e-mail e código) impediriam recadastrar um valor já usado por um registro apagado apenas logicamente. Ao excluir uma disciplina, os vínculos dela com planos de integralização são removidos na mesma transação. `academic_records.status` possui índice simples, usado pelos relatórios e pelo dashboard.
 
 ```
 users
@@ -371,7 +391,7 @@ study_plan_disciplines                      -- tabela associativa N:N
 
 **Formatos aceitos:** `.csv` com separador `;` ou `.xlsx` (primeira aba).
 
-O cabeçalho é localizado por nome de coluna, sem diferenciar maiúsculas/minúsculas e ignorando espaços nas extremidades. Colunas ausentes resultam em campo vazio ou zero — **exceto** `PERIODO_BASE_ENQUADRAMENTO` e `MATR_ALUNO`, que são obrigatórias e, se faltarem, abortam a importação com erro.
+O cabeçalho é localizado por nome de coluna, sem diferenciar maiúsculas/minúsculas e ignorando espaços nas extremidades. `PERIODO_BASE_ENQUADRAMENTO` e `MATR_ALUNO` são obrigatórias — se faltarem, a importação é abortada com erro. As demais colunas ausentes resultam em campo vazio ou zero; linhas individuais sem matrícula, sem semestre ou sem `COD_CURSO` numérico são ignoradas e contadas no resumo (nunca geram entidades vazias no banco).
 
 | Coluna da planilha | Destino no banco |
 |---|---|
@@ -392,12 +412,12 @@ O cabeçalho é localizado por nome de coluna, sem diferenciar maiúsculas/minú
 | `NUM_SEMESTRES_SEM_CH` | `academic_records.semesters_no_hours` |
 | `NUM_TRANCAMENTOS` | `academic_records.locks` |
 
-**Processamento de cada linha**
+**Processamento**
 
-1. Curso localizado ou criado por `COD_CURSO`; nome e coordenador são atualizados quando mudam.
-2. Semestre localizado ou criado por `PERIODO_BASE_ENQUADRAMENTO`.
-3. Aluno localizado por matrícula ou inicializado; dados cadastrais e vínculo com o curso são gravados.
-4. Registro acadêmico localizado por `(student_id, semester_id)` ou inicializado, e então salvo — inserindo ou atualizando conforme o caso.
+1. O arquivo inteiro é lido e convertido em memória (`parseRows`) — etapa pura, coberta por testes unitários. As linhas inválidas são contadas como ignoradas nesta fase.
+2. A gravação ocorre em **uma única transação**: cursos (criados ou atualizados por `COD_CURSO`), semestres, alunos e registros acadêmicos. Se qualquer linha falhar, nada é alterado (RNF-05).
+3. As entidades existentes são pré-carregadas em mapas antes do laço — a importação não repete consultas por linha (padrão N+1 eliminado).
+4. A resposta traz o resumo `{ total_rows, records_created, records_updated, skipped_rows }`, exibido pela interface ao final do upload (UC08, passo 7 do fluxo principal).
 
 O índice único `idx_student_semester` garante, no próprio banco, que não existam dois registros para o mesmo aluno no mesmo semestre.
 
@@ -407,20 +427,21 @@ O índice único `idx_student_semester` garante, no próprio banco, que não exi
 
 | ID | Regra | Onde é aplicada |
 |---|---|---|
-| RN01 | O usuário de `ID = 1` (Admin Master) não pode ser excluído nem rebaixado. | `user_controller.go` (HTTP 403) e desabilitado na interface |
-| RN02 | **Aluno crítico:** status `Em regularidade` **e** (`locks > 1` **ou** `semesters_no_hours > 1`) — alunos ainda classificados como regulares, mas já com sinais de retenção. | `indicators_controller.go` e `?mode=critical` no relatório acadêmico |
-| RN03 | **Próximo da formatura:** status `Em regularidade` **e** `pending_obligatory <= 6` disciplinas obrigatórias. | `indicators_controller.go` e `?max_pending=6` no relatório acadêmico |
-| RN04 | Importação com estratégia *upsert* pela chave natural `matrícula + semestre`; nenhuma duplicata é gerada. | `import_service.go` + índice único |
-| RN05 | Não é permitido registrar ação de acompanhamento para aluno com status `Em regularidade`. | `action_controller.go` (HTTP 403) e botão desabilitado na interface |
+| RN01 | O usuário de `ID = 1` (Admin Master) não pode ser excluído nem rebaixado. | `user_service.go` (HTTP 403) e desabilitado na interface |
+| RN02 | **Aluno crítico:** status `Em regularidade` **e** (`locks > 1` **ou** `semesters_no_hours > 1`) — alunos ainda classificados como regulares, mas já com sinais de retenção. | `services/rules.go` (definição única), usada pelo dashboard e por `?mode=critical` no relatório acadêmico |
+| RN03 | **Próximo da formatura:** status `Em regularidade` **e** `pending_obligatory <= 6` disciplinas obrigatórias. | `services/rules.go` (definição única), usada pelo dashboard e por `?max_pending=6` no relatório acadêmico |
+| RN04 | Importação com estratégia *upsert* pela chave natural `matrícula + semestre`, em transação única; nenhuma duplicata é gerada. | `import_service.go` + índice único |
+| RN05 | Não é permitido registrar ação de acompanhamento para aluno com status `Em regularidade`. | `action_service.go` (HTTP 403) e botão desabilitado na interface |
 | RN06 | Semestres, cursos e alunos inexistentes são criados automaticamente durante a importação. | `import_service.go` |
-| RN07 | Senhas armazenadas exclusivamente como hash BCrypt, no cadastro e na atualização. | `auth_service.go`, `user_controller.go` |
+| RN07 | Senhas armazenadas exclusivamente como hash BCrypt, no cadastro e na atualização. | `auth_service.go`, `user_service.go` |
 | RN08 | Token JWT válido por 24 horas; expirado, exige novo login. | `auth_service.go`, `auth_middleware.go` |
-| RN09 | Plano de integralização só pode ser criado para registro com status `PAE` ou `PIC`. | `study_plan_controller.go` (HTTP 403) |
-| RN10 | No máximo um plano de integralização por aluno e semestre; a segunda tentativa de criação retorna conflito e direciona para a atualização. | `study_plan_controller.go` (HTTP 409) + índice único |
-| RN11 | A atualização do plano **substitui integralmente** a lista de disciplinas associadas. | `study_plan_controller.go` |
-| RN12 | Descrição da ação de acompanhamento limitada a 500 caracteres. | `action_controller.go` e `StudentActions.jsx` |
-| RN13 | Código de disciplina é único. | `discipline_controller.go` (HTTP 409) + índice único |
-| RN14 | Ações de acompanhamento e planos de integralização são sempre vinculados a um semestre letivo. | Modelos e controllers correspondentes |
+| RN09 | Plano de integralização só pode ser criado para registro com status `PAE` ou `PIC`. | `study_plan_service.go` (HTTP 403) |
+| RN10 | No máximo um plano de integralização por aluno e semestre; a segunda tentativa de criação retorna conflito e direciona para a atualização. | `study_plan_service.go` — violação do índice único traduzida para HTTP 409 |
+| RN11 | A atualização do plano **substitui integralmente** a lista de disciplinas associadas. | `study_plan_service.go` |
+| RN12 | Descrição da ação de acompanhamento limitada a 500 caracteres. | `action_service.go` e `StudentActions.jsx` |
+| RN13 | Código de disciplina é único. | `discipline_service.go` — violação do índice único traduzida para HTTP 409 |
+| RN14 | Ações de acompanhamento e planos de integralização são sempre vinculados a um semestre letivo. | Modelos e services correspondentes |
+| RN15 | Rotas administrativas (importação, cadastro/listagem/exclusão de usuários) exigem papel `admin`, verificado no servidor. | `middlewares/require_role.go` |
 
 ---
 
@@ -449,7 +470,9 @@ Todas as rotas, exceto `/`, exigem sessão ativa (`PrivateRoute`).
 
 ## API REST
 
-Base: `<BACKEND_URL>/api`. Com exceção de `POST /login`, todas as rotas exigem o cabeçalho `Authorization: Bearer <token>`.
+Base: `<BACKEND_URL>/api/v1` — o prefixo `/api`, sem versão, permanece como alias de compatibilidade. Com exceção de `POST /login`, todas as rotas exigem o cabeçalho `Authorization: Bearer <token>`; as marcadas como **Admin** passam também pelo middleware `RequireRole("admin")`.
+
+Fora da API, `GET /health` (sem autenticação) responde ao *health check* da plataforma de hospedagem, verificando também a conectividade com o banco.
 
 ### Autenticação e usuários
 
@@ -457,16 +480,16 @@ Base: `<BACKEND_URL>/api`. Com exceção de `POST /login`, todas as rotas exigem
 |---|---|---|---|---|
 | `POST` | `/login` | Público | corpo: `email`, `password` | Retorna o token JWT e os dados do usuário |
 | `GET` | `/me` | Autenticado | — | Dados do usuário do token |
-| `POST` | `/register` | **Admin** | corpo: `name`, `email`, `password`, `role?` | Cria usuário (`role` padrão: `user`) |
-| `GET` | `/users` | Autenticado | `name`, `email`, `role` | Lista usuários (sem o hash da senha) |
-| `PUT` | `/users/:id` | Autenticado | corpo: `name?`, `email?`, `password?`, `role?` | Atualiza usuário; só `admin` altera `role` |
-| `DELETE` | `/users/:id` | Autenticado | — | Remove usuário (`ID = 1` bloqueado) |
+| `POST` | `/register` | **Admin** | corpo: `name`, `email`, `password`, `role?` | Cria usuário (`role` padrão `user`; e-mail validado; senha ≥ 6 caracteres) |
+| `GET` | `/users` | **Admin** | `name`, `email`, `role` | Lista usuários (sem o hash da senha) |
+| `PUT` | `/users/:id` | Autenticado | corpo: `name?`, `email?`, `password?`, `role?` | Usuário comum edita apenas o próprio perfil; só `admin` altera `role` |
+| `DELETE` | `/users/:id` | **Admin** | — | Remove usuário (`ID = 1` e autoexclusão bloqueados) |
 
 ### Importação e dados de referência
 
 | Método | Rota | Acesso | Parâmetros | Descrição |
 |---|---|---|---|---|
-| `POST` | `/upload` | Autenticado | `multipart/form-data`, campo `file` | Importa planilha CSV/XLSX |
+| `POST` | `/upload` | **Admin** | `multipart/form-data`, campo `file` | Importa planilha CSV/XLSX; retorna `summary` com o resultado |
 | `GET` | `/semesters` | Autenticado | — | Semestres em ordem decrescente de código |
 | `GET` | `/reports/courses` | Autenticado | `code`, `name` | Cursos cadastrados |
 
@@ -474,8 +497,8 @@ Base: `<BACKEND_URL>/api`. Com exceção de `POST /login`, todas as rotas exigem
 
 | Método | Rota | Acesso | Parâmetros | Descrição |
 |---|---|---|---|---|
-| `GET` | `/reports/records` | Autenticado | `semester_id`, `mode=critical`, `max_pending`, `registration`, `student_name`, `course_name`, `status` | Relatório acadêmico com aluno, curso e semestre pré-carregados |
-| `GET` | `/reports/students` | Autenticado | `semester_id`, `registration`, `name`, `entry_year`, `quota_type` | Alunos (com `semester_id`, apenas os que têm registro no semestre) |
+| `GET` | `/reports/records` | Autenticado | `semester_id`, `mode=critical`, `max_pending`, `registration`, `student_name`, `course_name`, `status`, `limit`, `offset` | Relatório acadêmico com aluno, curso e semestre aninhados |
+| `GET` | `/reports/students` | Autenticado | `semester_id`, `registration`, `name`, `entry_year`, `quota_type`, `limit`, `offset` | Alunos (com `semester_id`, apenas os que têm registro no semestre) |
 | `GET` | `/reports/dashboard` | Autenticado | `semester_id` **(obrigatório)** | Distribuição por status, alunos críticos e próximos da formatura |
 | `GET` | `/students/:registration/history` | Autenticado | — | `{ student, history }` — histórico ordenado por semestre |
 
@@ -500,7 +523,7 @@ Base: `<BACKEND_URL>/api`. Com exceção de `POST /login`, todas as rotas exigem
 | `POST` | `/students/:registration/plan` | Autenticado | corpo: `semester_id`, `discipline_ids[]` | Cria plano (403 fora de PAE/PIC, 409 se já existir) |
 | `PUT` | `/students/:registration/plan` | Autenticado | corpo: `semester_id`, `discipline_ids[]` | Substitui as disciplinas do plano |
 
-> A coluna **Acesso** descreve o que o servidor verifica hoje. A restrição das funções administrativas ao perfil `admin` é feita, nas demais rotas, pela interface — veja [Limitações conhecidas](#limitações-conhecidas).
+> Paginação: em `/reports/records` e `/reports/students`, `limit`/`offset` são opcionais — sem `limit`, a listagem completa é retornada (comportamento esperado pelas telas atuais); com `limit`, o total de linhas vem no cabeçalho `X-Total-Count`. As respostas usam DTOs: campos internos como `deleted_at` não são expostos.
 
 ---
 
@@ -523,8 +546,11 @@ go run cmd/server/main.go
 
 O servidor sobe em `http://localhost:8080`. Na primeira execução:
 
+- variáveis obrigatórias ausentes derrubam o servidor na largada, com mensagem indicando quais faltam;
 - o `AutoMigrate` cria/atualiza todas as tabelas;
-- `EnsureAdmin()` cria o usuário administrador definido no `.env`, caso ainda não exista.
+- `EnsureAdmin` cria o usuário administrador definido no `.env`, caso ainda não exista.
+
+`GET http://localhost:8080/health` confirma que servidor e banco estão no ar.
 
 > O `.env` é lido a partir do diretório de trabalho — execute o comando **de dentro de `backend/`**. Se o arquivo não existir, o Viper usa apenas as variáveis do ambiente do sistema.
 
@@ -547,20 +573,24 @@ Entre com o e-mail e a senha definidos em `ADMIN_EMAIL` / `ADMIN_PASSWORD`. Em s
 
 ### Backend — `backend/.env`
 
-| Variável | Descrição |
-|---|---|
-| `DATABASE_URL` | DSN do PostgreSQL, ex.: `postgres://usuario:senha@host:5432/banco?sslmode=require` |
-| `JWT_SECRET` | Segredo usado para assinar os tokens (HS256) |
-| `ADMIN_EMAIL` | E-mail do administrador semeado na primeira execução |
-| `ADMIN_PASSWORD` | Senha inicial desse administrador |
-| `ADMIN_NAME` | Nome exibido para esse administrador |
-| `PORT` | Porta do servidor (padrão `8080` quando vazia) |
+| Variável | Obrigatória | Descrição |
+|---|---|---|
+| `DATABASE_URL` | sim | DSN do PostgreSQL, ex.: `postgres://usuario:senha@host:5432/banco?sslmode=require` |
+| `JWT_SECRET` | sim | Segredo usado para assinar os tokens (HS256) |
+| `ADMIN_EMAIL` | sim | E-mail do administrador semeado na primeira execução |
+| `ADMIN_PASSWORD` | sim | Senha inicial desse administrador |
+| `ADMIN_NAME` | sim | Nome exibido para esse administrador |
+| `PORT` | não | Porta do servidor (padrão `8080`) |
+| `APP_ENV` | não | `production` ativa o modo release do Gin (padrão `development`) |
+| `ALLOWED_ORIGINS` | não | Origens permitidas no CORS, separadas por vírgula (padrão: `http://localhost:5173` e `https://frontend-ada.onrender.com`) |
+
+As obrigatórias são validadas na inicialização — o servidor aborta listando as ausentes, em vez de subir com chave JWT vazia.
 
 ### Frontend — `frontend/.env`
 
 | Variável | Descrição |
 |---|---|
-| `VITE_API_URL` | URL base do backend **sem** `/api` — o sufixo é acrescentado em `services/api.js`. Padrão: `http://localhost:8080` |
+| `VITE_API_URL` | URL base do backend **sem sufixo** — `services/api.js` acrescenta `/api/v1`. Padrão: `http://localhost:8080` |
 
 ---
 
@@ -571,26 +601,29 @@ Todos os componentes são hospedados no Render, com implantação automática a 
 | Componente | Serviço no Render | Configuração esperada |
 |---|---|---|
 | Frontend | Static Site | *Build*: `npm install && npm run build` · Publicação: `dist` · `public/_redirects` mantém o roteamento da SPA (`/* /index.html 200`) · Variável `VITE_API_URL` apontando para o backend |
-| Backend | Web Service (Go) | *Build*: `go build -o app ./cmd/server` · Variáveis de ambiente da seção anterior · Porta fornecida pela plataforma em `PORT` |
+| Backend | Web Service (Go) | *Build*: `go build -o app ./cmd/server` · Variáveis de ambiente da seção anterior, com `APP_ENV=production` · Porta fornecida pela plataforma em `PORT` · *Health check path*: `/health` |
 | Banco | PostgreSQL gerenciado | Conexão por SSL sobre a rede privada interna; sem exposição pública |
 
-> Ao publicar o frontend em um domínio novo, inclua a URL na lista branca de CORS em `cmd/server/main.go` — caso contrário o navegador bloqueia as requisições.
+> Ao publicar o frontend em um domínio novo, acrescente a URL em `ALLOWED_ORIGINS` (separada por vírgula) — sem necessidade de alterar código; caso contrário o navegador bloqueia as requisições. O servidor faz desligamento gracioso em `SIGTERM`, encerrando as conexões em andamento antes de sair — compatível com os reinícios da plataforma.
+
+---
+
+## Testes e CI
+
+- `cd backend && go test ./...` executa os testes unitários: mapeamento de colunas da importação (`parseRows` — incluindo cabeçalho com caixa/espaços diferentes e o descarte de linhas inválidas) e tradução de erros de domínio para HTTP (`respondError` — incluindo a garantia de que respostas 500 não vazam detalhes internos).
+- O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda a cada push e pull request: `gofmt`, `go vet`, testes e build do backend, além do build de produção do frontend.
 
 ---
 
 ## Limitações conhecidas
 
-Registradas aqui por transparência; parte delas já aparece na monografia como trabalhos futuros.
+Registradas aqui por transparência; parte delas já aparece na monografia como trabalhos futuros. As falhas estruturais apontadas em revisões anteriores — RBAC apenas na interface, `userID` sempre zero no contexto (que quebrava a edição de perfil de usuários comuns), e-mail duplicado respondendo 500, importação sem transação, curso vazio vinculando alunos ao curso errado e o log residual "Aiven" — foram corrigidas na refatoração do backend.
 
-1. **Autorização por papel no servidor.** Somente `POST /api/register` verifica explicitamente `role == "admin"`; a edição de usuários acaba restrita a administradores como efeito colateral da checagem descrita no item 2. As demais rotas de escrita — importação de planilhas, exclusão de usuários, ações de acompanhamento, disciplinas e planos de integralização — exigem apenas um token válido. A separação entre perfis é feita na interface, que oculta os módulos administrativos. Estender a verificação de papel às rotas de escrita é o próximo passo natural de segurança.
-2. **Identificação do requisitante no contexto Gin.** O middleware grava `userID` como `float64` (tipo natural do *claim* JSON) e os controllers o leem com `c.GetUint`, que devolve `0`. Como consequência, as verificações de "não alterar/excluir a si mesmo" em `user_controller.go` não têm efeito prático, e um usuário com papel `user` recebe 403 ao tentar salvar o próprio perfil.
-3. **Progresso da importação.** O envio do arquivo é medido de fato (0–40%); o restante é uma estimativa animada no cliente até a resposta do servidor. O backend processa o arquivo de forma síncrona, sem informar progresso real nem o total de linhas importadas.
-4. **Status do aluno na tela de ações.** `StudentActions.jsx` procura o campo `records` na resposta do histórico, que devolve `history`; por isso o *chip* de status não é exibido nessa tela.
-5. **Filtro inicial em Alunos Ativos.** O campo de ano de ingresso já vem preenchido com o ano corrente e é aplicado na primeira consulta — para ver todos os alunos, é preciso limpar o campo e buscar novamente.
-6. **Sem paginação.** Relatórios e listagens retornam o conjunto completo de registros do semestre.
-7. **Sem testes automatizados.** A verificação foi funcional, conduzida pela interface a partir dos casos de uso (seção 4.2.2 da monografia).
-8. **Mensagem de log desatualizada.** `pkg/database/postgres.go` ainda registra "PostgreSQL (Aiven)" na conexão, resquício de uma hospedagem anterior do banco.
-9. **LGPD.** Foram adotadas minimização de dados (matrícula como identificador), armazenamento irreversível de senhas e acesso restrito a usuários autenticados. Políticas formais de retenção e de tratamento continuam pendentes.
+1. **Progresso da importação.** A barra mede de fato apenas o envio do arquivo; o processamento no servidor é síncrono e a etapa intermediária é uma estimativa animada. Ao final, porém, o resumo real (novos, atualizados, ignorados) é retornado e exibido.
+2. **Filtro inicial em Alunos Ativos.** O campo de ano de ingresso vem preenchido com o ano corrente e é aplicado na primeira consulta — para ver todos os alunos, é preciso limpar o campo e buscar novamente.
+3. **Paginação apenas na API.** `GET /reports/records` e `GET /reports/students` aceitam `limit`/`offset` e devolvem `X-Total-Count`, mas as telas ainda carregam a lista completa.
+4. **Cobertura de testes parcial.** Há testes unitários do parse da importação e da tradução de erros, executados no CI; as regras que dependem do banco (services) ainda não têm testes de integração.
+5. **LGPD.** Foram adotadas minimização de dados (matrícula como identificador), armazenamento irreversível de senhas e acesso restrito a usuários autenticados. Políticas formais de retenção e de tratamento continuam pendentes.
 
 ---
 
