@@ -316,10 +316,6 @@ ADAManagement/
 │   └── vite.config.ts
 │
 ├── .github/workflows/ci.yml          # CI: gofmt, go vet, testes e builds
-├── diagrama_arquitetura.html         # diagramas usados na monografia
-├── diagrama_casos_de_uso.html
-├── diagrama_er.html
-├── ADAManagement_TCC.txt             # notas técnicas de apoio à redação
 └── tcc_matheus.pdf                   # monografia
 ```
 
@@ -631,11 +627,7 @@ Registradas aqui por transparência; parte delas já aparece na monografia como 
 
 | Arquivo | Conteúdo |
 |---|---|
-| [`tcc_matheus.pdf`](tcc_matheus.pdf) | Monografia completa: fundamentação, metodologia, requisitos, casos de uso, resultados e apêndices (dicionário de dados e casos de uso) |
-| [`diagrama_arquitetura.html`](diagrama_arquitetura.html) | Diagrama de camadas da arquitetura |
-| [`diagrama_casos_de_uso.html`](diagrama_casos_de_uso.html) | Diagramas de casos de uso por grupo funcional |
-| [`diagrama_er.html`](diagrama_er.html) | Modelo do banco de dados |
-| [`ADAManagement_TCC.txt`](ADAManagement_TCC.txt) | Notas técnicas de apoio à redação da monografia |
+| [`tcc_matheus.pdf`](tcc_matheus.pdf) | Monografia completa: fundamentação, metodologia, requisitos, casos de uso, resultados e apêndices (dicionário de dados, casos de uso e os diagramas de arquitetura, casos de uso e modelo de dados) |
 
 ---
 
