@@ -14,6 +14,7 @@ import ClassIcon from '@mui/icons-material/Class';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 
 const ModuleCard = ({ icon: Icon, title, description, color, isEmpty, onClick }) => (
   <Paper
@@ -192,6 +193,17 @@ const Home = () => {
               color="#7C3AED"
               isEmpty={emptyReports.indicators}
               onClick={() => navigate('/reports/indicators')}
+            />
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={4}>
+            <ModuleCard
+              icon={MenuBookIcon}
+              title="Disciplinas"
+              description="Gerencie as disciplinas disponíveis para os planos de integralização."
+              color="#6366F1"
+              isEmpty={false}
+              onClick={() => navigate('/disciplines')}
             />
           </Grid>
 
