@@ -1,39 +1,31 @@
 package controllers
 
 import (
-	"adamanagement/backend/internal/models"
-	"adamanagement/backend/pkg/database"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"adamanagement/backend/internal/controllers/dto"
+	"adamanagement/backend/internal/services"
 )
 
-func GetStudentHistoryHandler(c *gin.Context) {
-	registration := c.Param("registration")
+type StudentHandler struct {
+	svc *services.StudentService
+}
 
-	var student models.Student
+func NewStudentHandler(svc *services.StudentService) *StudentHandler {
+	return &StudentHandler{svc: svc}
+}
 
-	if result := database.DB.
-		Preload("Course").
-		Where("registration = ?", registration).
-		First(&student); result.Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Aluno não encontrado"})
-		return
-	}
-
-	var records []models.AcademicRecord
-	if result := database.DB.
-		Preload("Semester").
-		Where("student_id = ?", student.ID).
-		Joins("JOIN semesters ON semesters.id = academic_records.semester_id").
-		Order("semesters.code asc").
-		Find(&records); result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar histórico"})
+func (h *StudentHandler) History(c *gin.Context) {
+	student, records, err := h.svc.History(c.Param("registration"))
+	if err != nil {
+		respondError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"student": student,
-		"history": records,
+		"student": dto.NewStudent(*student),
+		"history": dto.NewAcademicRecords(records),
 	})
 }

@@ -1,13 +1,22 @@
 package controllers
 
 import (
-	"adamanagement/backend/internal/services"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"adamanagement/backend/internal/services"
 )
 
-func UploadCSVHandler(c *gin.Context) {
+type ImportHandler struct {
+	svc *services.ImportService
+}
+
+func NewImportHandler(svc *services.ImportService) *ImportHandler { return &ImportHandler{svc: svc} }
+
+// Upload recebe a planilha institucional (CSV ou XLSX) e delega o
+// processamento transacional ao service, devolvendo o resumo (UC08).
+func (h *ImportHandler) Upload(c *gin.Context) {
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Arquivo não enviado"})
@@ -15,11 +24,14 @@ func UploadCSVHandler(c *gin.Context) {
 	}
 	defer file.Close()
 
-	err = services.ProcessFile(file, header.Filename)
+	summary, err := h.svc.Process(file, header.Filename)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Importação concluída com sucesso!"})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Importação concluída com sucesso!",
+		"summary": summary,
+	})
 }

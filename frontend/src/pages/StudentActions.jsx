@@ -50,8 +50,8 @@ const StudentActions = () => {
          if (data?.student) {
            setStudentName(data.student.name || registration);
          }
-         if (data?.records) {
-           const record = data.records.find(r => String(r.semester_id) === String(semesterId));
+         if (data?.history) {
+           const record = data.history.find(r => String(r.semester_id) === String(semesterId));
            if (record) setStudentStatus(record.status);
          }
        })

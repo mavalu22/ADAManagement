@@ -1,117 +1,107 @@
 package controllers
 
 import (
-	"adamanagement/backend/internal/models"
-	"adamanagement/backend/pkg/database"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"adamanagement/backend/internal/controllers/dto"
+	"adamanagement/backend/internal/services"
 )
 
-func GetSemestersHandler(c *gin.Context) {
-	var semesters []models.Semester
-	if result := database.DB.Order("code desc").Find(&semesters); result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar semestres"})
-		return
-	}
-	c.JSON(http.StatusOK, semesters)
+type ReportHandler struct {
+	svc *services.ReportService
 }
 
-func GetAcademicRecordsReportHandler(c *gin.Context) {
-	query := database.DB.Model(&models.AcademicRecord{}).
-		Joins("JOIN students ON students.id = academic_records.student_id").
-		Joins("JOIN courses ON courses.id = students.course_id").
-		Preload("Student").
-		Preload("Student.Course").
-		Preload("Semester")
+func NewReportHandler(svc *services.ReportService) *ReportHandler { return &ReportHandler{svc: svc} }
 
-	if semID := c.Query("semester_id"); semID != "" {
-		query = query.Where("academic_records.semester_id = ?", semID)
-	}
-
-	if mode := c.Query("mode"); mode == "critical" {
-		query = query.Where("(academic_records.locks > 1 OR academic_records.semesters_no_hours > 1)")
-		query = query.Where("academic_records.status = ?", "Em regularidade")
-	}
-
-	if maxPending := c.Query("max_pending"); maxPending != "" {
-		query = query.Where("academic_records.pending_obligatory <= ?", maxPending)
-		query = query.Where("academic_records.status = ?", "Em regularidade")
-		query = query.Order("academic_records.pending_obligatory ASC")
-	}
-
-	if reg := c.Query("registration"); reg != "" {
-		query = query.Where("students.registration LIKE ?", "%"+reg+"%")
-	}
-	if sName := c.Query("student_name"); sName != "" {
-		query = query.Where("students.name LIKE ?", "%"+sName+"%")
-	}
-	if cName := c.Query("course_name"); cName != "" {
-		query = query.Where("courses.name LIKE ?", "%"+cName+"%")
-	}
-	if status := c.Query("status"); status != "" {
-		query = query.Where("academic_records.status = ?", status)
-	}
-
-	var records []models.AcademicRecord
-	if err := query.Find(&records).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar histórico"})
+func (h *ReportHandler) Semesters(c *gin.Context) {
+	semesters, err := h.svc.Semesters()
+	if err != nil {
+		respondError(c, err)
 		return
 	}
-
-	c.JSON(http.StatusOK, records)
+	c.JSON(http.StatusOK, dto.NewSemesters(semesters))
 }
 
-func GetCoursesReportHandler(c *gin.Context) {
-	query := database.DB.Model(&models.Course{})
-
-	if code := c.Query("code"); code != "" {
-		query = query.Where("code = ?", code)
-	}
-
-	if name := c.Query("name"); name != "" {
-		query = query.Where("name LIKE ?", "%"+name+"%")
-	}
-
-	var courses []models.Course
-	if err := query.Find(&courses).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar cursos"})
+func (h *ReportHandler) Records(c *gin.Context) {
+	limit, offset, err := pagination(c)
+	if err != nil {
+		respondError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, courses)
+	maxPending, err := intQuery(c, "max_pending")
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+
+	records, total, err := h.svc.Records(services.RecordsFilter{
+		SemesterID:   c.Query("semester_id"),
+		Registration: c.Query("registration"),
+		StudentName:  c.Query("student_name"),
+		CourseName:   c.Query("course_name"),
+		Status:       c.Query("status"),
+		CriticalOnly: c.Query("mode") == "critical",
+		MaxPending:   maxPending,
+		Limit:        limit,
+		Offset:       offset,
+	})
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+
+	setTotalHeader(c, total)
+	c.JSON(http.StatusOK, dto.NewAcademicRecords(records))
 }
 
-func GetStudentsReportHandler(c *gin.Context) {
-	query := database.DB.Model(&models.Student{}).Preload("Course")
-
-	if semID := c.Query("semester_id"); semID != "" {
-		query = query.Joins("JOIN academic_records ON academic_records.student_id = students.id").
-			Where("academic_records.semester_id = ?", semID).
-			Group("students.id")
-	}
-
-	if reg := c.Query("registration"); reg != "" {
-		query = query.Where("students.registration LIKE ?", "%"+reg+"%")
-	}
-
-	if name := c.Query("name"); name != "" {
-		query = query.Where("students.name LIKE ?", "%"+name+"%")
-	}
-
-	if entryYear := c.Query("entry_year"); entryYear != "" {
-		query = query.Where("students.entry_year = ?", entryYear)
-	}
-
-	if quota := c.Query("quota_type"); quota != "" {
-		query = query.Where("students.quota_type = ?", quota)
-	}
-
-	var students []models.Student
-	if err := query.Find(&students).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar alunos"})
+func (h *ReportHandler) Courses(c *gin.Context) {
+	code, err := intQuery(c, "code")
+	if err != nil {
+		respondError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, students)
+	courses, err := h.svc.Courses(services.CoursesFilter{
+		Code: code,
+		Name: c.Query("name"),
+	})
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, dto.NewCourses(courses))
+}
+
+func (h *ReportHandler) Students(c *gin.Context) {
+	limit, offset, err := pagination(c)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+
+	entryYear, err := intQuery(c, "entry_year")
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+
+	students, total, err := h.svc.Students(services.StudentsFilter{
+		SemesterID:   c.Query("semester_id"),
+		Registration: c.Query("registration"),
+		Name:         c.Query("name"),
+		EntryYear:    entryYear,
+		QuotaType:    c.Query("quota_type"),
+		Limit:        limit,
+		Offset:       offset,
+	})
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+
+	setTotalHeader(c, total)
+	c.JSON(http.StatusOK, dto.NewStudents(students))
 }

@@ -8,50 +8,72 @@ import (
 	"strconv"
 	"strings"
 
-	"adamanagement/backend/internal/models"
-	"adamanagement/backend/pkg/database"
-
 	"github.com/xuri/excelize/v2"
+	"gorm.io/gorm"
+
+	"adamanagement/backend/internal/models"
 )
 
-func getColIndex(headers []string, colName string) int {
-	for i, h := range headers {
-		if strings.EqualFold(strings.TrimSpace(h), colName) {
-			return i
-		}
-	}
-	return -1
+type ImportService struct {
+	db *gorm.DB
 }
 
-func ProcessFile(file multipart.File, filename string) error {
-	ext := strings.ToLower(filepath.Ext(filename))
+func NewImportService(db *gorm.DB) *ImportService { return &ImportService{db: db} }
 
+// ImportSummary relata o resultado da importação (UC08, fluxo principal,
+// passo 7).
+type ImportSummary struct {
+	TotalRows      int `json:"total_rows"`
+	RecordsCreated int `json:"records_created"`
+	RecordsUpdated int `json:"records_updated"`
+	SkippedRows    int `json:"skipped_rows"`
+}
+
+// Process lê o arquivo, valida o cabeçalho e grava todas as linhas em uma
+// única transação: ou a planilha inteira entra, ou nada é alterado (RNF-05).
+func (s *ImportService) Process(file multipart.File, filename string) (*ImportSummary, error) {
 	var rows [][]string
 	var err error
 
-	if ext == ".xlsx" {
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".xlsx":
 		rows, err = readXLSX(file)
-	} else if ext == ".csv" {
+	case ".csv":
 		rows, err = readCSV(file)
-	} else {
-		return errors.New("formato não suportado. Use .csv ou .xlsx")
+	default:
+		return nil, Invalid("formato não suportado. Use .csv ou .xlsx")
 	}
-
 	if err != nil {
-		return err
+		return nil, Invalid("falha ao ler o arquivo: " + err.Error())
 	}
 
 	if len(rows) < 2 {
-		return errors.New("o arquivo parece estar vazio ou sem cabeçalho")
+		return nil, Invalid("o arquivo parece estar vazio ou sem cabeçalho")
 	}
 
-	return processRows(rows)
+	parsed, err := parseRows(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	summary := &ImportSummary{
+		TotalRows:   len(rows) - 1,
+		SkippedRows: parsed.Skipped,
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		return persistRows(tx, parsed.Rows, summary)
+	}); err != nil {
+		return nil, err
+	}
+	return summary, nil
 }
 
 func readCSV(file multipart.File) ([][]string, error) {
 	reader := csv.NewReader(file)
 	reader.Comma = ';'
 	reader.LazyQuotes = true
+	reader.FieldsPerRecord = -1 // linhas com contagens diferentes são tratadas no parse
 	return reader.ReadAll()
 }
 
@@ -66,12 +88,64 @@ func readXLSX(file multipart.File) ([][]string, error) {
 	if sheetName == "" {
 		return nil, errors.New("nenhuma aba encontrada no Excel")
 	}
-
 	return f.GetRows(sheetName)
 }
 
-func processRows(rows [][]string) error {
-	headers := rows[0]
+// importRow é a representação neutra de uma linha da planilha, separada
+// da persistência para que o mapeamento de colunas seja testável sem
+// banco de dados.
+type importRow struct {
+	SemesterCode string
+	CourseCode   int
+	CourseName   string
+	Coordinator  string
+
+	Registration string
+	StudentName  string
+	EntryYear    int
+	EntryPeriod  string
+	QuotaType    string
+
+	Status            string
+	StatusDetail      string
+	IntegralizedHours int
+	TotalHours        int
+	PendingObligatory int
+	SemestersNoHours  int
+	Locks             int
+}
+
+type parsedFile struct {
+	Rows    []importRow
+	Skipped int
+}
+
+func getColIndex(headers []string, colName string) int {
+	for i, h := range headers {
+		if strings.EqualFold(strings.TrimSpace(h), colName) {
+			return i
+		}
+	}
+	return -1
+}
+
+func safeGet(row []string, index int) string {
+	if index >= 0 && index < len(row) {
+		return strings.TrimSpace(row[index])
+	}
+	return ""
+}
+
+func atoiOrZero(s string) int {
+	n, _ := strconv.Atoi(s)
+	return n
+}
+
+// parseRows valida o cabeçalho e converte as linhas. Linhas sem
+// matrícula, sem semestre ou sem código de curso numérico são contadas
+// como ignoradas — nunca geram entidades vazias no banco.
+func parseRows(raw [][]string) (*parsedFile, error) {
+	headers := raw[0]
 
 	idxSemestre := getColIndex(headers, "PERIODO_BASE_ENQUADRAMENTO")
 	idxCodCurso := getColIndex(headers, "COD_CURSO")
@@ -93,65 +167,148 @@ func processRows(rows [][]string) error {
 	idxTrancamentos := getColIndex(headers, "NUM_TRANCAMENTOS")
 
 	if idxSemestre == -1 || idxMatricula == -1 {
-		return errors.New("formato de arquivo inválido: colunas essenciais não encontradas")
+		return nil, Invalid("formato de arquivo inválido: colunas essenciais não encontradas")
 	}
 
-	for _, record := range rows[1:] {
-		if len(record) < idxMatricula {
+	parsed := &parsedFile{}
+	for _, record := range raw[1:] {
+		registration := safeGet(record, idxMatricula)
+		semesterCode := safeGet(record, idxSemestre)
+		courseCode, convErr := strconv.Atoi(safeGet(record, idxCodCurso))
+
+		if registration == "" || semesterCode == "" || convErr != nil || courseCode == 0 {
+			parsed.Skipped++
 			continue
 		}
 
-		codCurso, _ := strconv.Atoi(safeGet(record, idxCodCurso))
-		var course models.Course
-		database.DB.Where(models.Course{Code: codCurso}).FirstOrCreate(&course)
-
-		valNomeCurso := safeGet(record, idxNomeCurso)
-		valCoord := safeGet(record, idxCoord)
-
-		if course.Name != valNomeCurso || course.Coordinator != valCoord {
-			course.Code = codCurso
-			course.Name = valNomeCurso
-			course.Coordinator = valCoord
-			database.DB.Save(&course)
-		}
-
-		var semester models.Semester
-		database.DB.FirstOrCreate(&semester, models.Semester{Code: safeGet(record, idxSemestre)})
-
-		var student models.Student
-		matr := safeGet(record, idxMatricula)
-		database.DB.Where("registration = ?", matr).FirstOrInit(&student)
-
-		student.Registration = matr
-		student.Name = safeGet(record, idxNomeAluno)
-		student.EntryYear, _ = strconv.Atoi(safeGet(record, idxAnoIngresso))
-		student.EntryPeriod = safeGet(record, idxPeriodoIngresso)
-		student.QuotaType = safeGet(record, idxCota)
-		student.CourseID = course.ID
-		database.DB.Save(&student)
-
-		var academicRecord models.AcademicRecord
-		database.DB.Where("student_id = ? AND semester_id = ?", student.ID, semester.ID).FirstOrInit(&academicRecord)
-
-		academicRecord.StudentID = student.ID
-		academicRecord.SemesterID = semester.ID
-		academicRecord.Status = safeGet(record, idxEnquadramento)
-		academicRecord.StatusDetail = safeGet(record, idxAcomp)
-		academicRecord.IntegralizedHours, _ = strconv.Atoi(safeGet(record, idxCHI))
-		academicRecord.TotalHours, _ = strconv.Atoi(safeGet(record, idxCHTotal))
-		academicRecord.PendingObligatory, _ = strconv.Atoi(safeGet(record, idxFaltantes))
-		academicRecord.SemestersNoHours, _ = strconv.Atoi(safeGet(record, idxSemestresZero))
-		academicRecord.Locks, _ = strconv.Atoi(safeGet(record, idxTrancamentos))
-
-		database.DB.Save(&academicRecord)
+		parsed.Rows = append(parsed.Rows, importRow{
+			SemesterCode:      semesterCode,
+			CourseCode:        courseCode,
+			CourseName:        safeGet(record, idxNomeCurso),
+			Coordinator:       safeGet(record, idxCoord),
+			Registration:      registration,
+			StudentName:       safeGet(record, idxNomeAluno),
+			EntryYear:         atoiOrZero(safeGet(record, idxAnoIngresso)),
+			EntryPeriod:       safeGet(record, idxPeriodoIngresso),
+			QuotaType:         safeGet(record, idxCota),
+			Status:            safeGet(record, idxEnquadramento),
+			StatusDetail:      safeGet(record, idxAcomp),
+			IntegralizedHours: atoiOrZero(safeGet(record, idxCHI)),
+			TotalHours:        atoiOrZero(safeGet(record, idxCHTotal)),
+			PendingObligatory: atoiOrZero(safeGet(record, idxFaltantes)),
+			SemestersNoHours:  atoiOrZero(safeGet(record, idxSemestresZero)),
+			Locks:             atoiOrZero(safeGet(record, idxTrancamentos)),
+		})
 	}
-
-	return nil
+	return parsed, nil
 }
 
-func safeGet(row []string, index int) string {
-	if index >= 0 && index < len(row) {
-		return row[index]
+// persistRows grava as linhas dentro da transação recebida. Cursos,
+// semestres, alunos e registros são pré-carregados em mapas — as buscas
+// repetidas por linha (padrão N+1) são eliminadas.
+func persistRows(tx *gorm.DB, rows []importRow, summary *ImportSummary) error {
+	var allCourses []models.Course
+	if err := tx.Find(&allCourses).Error; err != nil {
+		return err
 	}
-	return ""
+	courses := make(map[int]*models.Course, len(allCourses))
+	for i := range allCourses {
+		courses[allCourses[i].Code] = &allCourses[i]
+	}
+
+	var allSemesters []models.Semester
+	if err := tx.Find(&allSemesters).Error; err != nil {
+		return err
+	}
+	semesters := make(map[string]*models.Semester, len(allSemesters))
+	for i := range allSemesters {
+		semesters[allSemesters[i].Code] = &allSemesters[i]
+	}
+
+	var allStudents []models.Student
+	if err := tx.Find(&allStudents).Error; err != nil {
+		return err
+	}
+	students := make(map[string]*models.Student, len(allStudents))
+	for i := range allStudents {
+		students[allStudents[i].Registration] = &allStudents[i]
+	}
+
+	type recordKey struct{ StudentID, SemesterID uint }
+	var allRecords []models.AcademicRecord
+	if err := tx.Find(&allRecords).Error; err != nil {
+		return err
+	}
+	records := make(map[recordKey]*models.AcademicRecord, len(allRecords))
+	for i := range allRecords {
+		r := &allRecords[i]
+		records[recordKey{r.StudentID, r.SemesterID}] = r
+	}
+
+	for i := range rows {
+		row := &rows[i]
+
+		course := courses[row.CourseCode]
+		if course == nil {
+			course = &models.Course{Code: row.CourseCode, Name: row.CourseName, Coordinator: row.Coordinator}
+			if err := tx.Create(course).Error; err != nil {
+				return err
+			}
+			courses[row.CourseCode] = course
+		} else if course.Name != row.CourseName || course.Coordinator != row.Coordinator {
+			course.Name = row.CourseName
+			course.Coordinator = row.Coordinator
+			if err := tx.Save(course).Error; err != nil {
+				return err
+			}
+		}
+
+		semester := semesters[row.SemesterCode]
+		if semester == nil {
+			semester = &models.Semester{Code: row.SemesterCode}
+			if err := tx.Create(semester).Error; err != nil {
+				return err
+			}
+			semesters[row.SemesterCode] = semester
+		}
+
+		student := students[row.Registration]
+		if student == nil {
+			student = &models.Student{Registration: row.Registration}
+			students[row.Registration] = student
+		}
+		student.Name = row.StudentName
+		student.EntryYear = row.EntryYear
+		student.EntryPeriod = row.EntryPeriod
+		student.QuotaType = row.QuotaType
+		student.CourseID = course.ID
+		if err := tx.Save(student).Error; err != nil {
+			return err
+		}
+
+		key := recordKey{student.ID, semester.ID}
+		record := records[key]
+		isNew := record == nil
+		if isNew {
+			record = &models.AcademicRecord{StudentID: student.ID, SemesterID: semester.ID}
+			records[key] = record
+		}
+		record.Status = row.Status
+		record.StatusDetail = row.StatusDetail
+		record.IntegralizedHours = row.IntegralizedHours
+		record.TotalHours = row.TotalHours
+		record.PendingObligatory = row.PendingObligatory
+		record.SemestersNoHours = row.SemestersNoHours
+		record.Locks = row.Locks
+		if err := tx.Save(record).Error; err != nil {
+			return err
+		}
+
+		if isNew {
+			summary.RecordsCreated++
+		} else {
+			summary.RecordsUpdated++
+		}
+	}
+	return nil
 }

@@ -1,84 +1,123 @@
 package services
 
 import (
-	"adamanagement/backend/config"
-	"adamanagement/backend/internal/models"
-	"adamanagement/backend/pkg/database"
 	"errors"
-	"log"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
+
+	"adamanagement/backend/internal/models"
 )
 
+// TokenTTL é a validade do token JWT (RN08).
+const TokenTTL = 24 * time.Hour
+
+// Claims é o payload dos tokens emitidos pelo sistema. O middleware de
+// autenticação valida com este mesmo tipo, mantendo o contrato em um
+// único lugar.
 type Claims struct {
 	UserID uint   `json:"user_id"`
 	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
 
-func Login(email, password string) (string, *models.User, error) {
-	var user models.User
+type AuthService struct {
+	db        *gorm.DB
+	jwtSecret []byte
+}
 
-	if result := database.DB.Where("email = ?", email).First(&user); result.Error != nil {
-		return "", nil, errors.New("usuário ou senha incorretos")
+func NewAuthService(db *gorm.DB, jwtSecret string) *AuthService {
+	return &AuthService{db: db, jwtSecret: []byte(jwtSecret)}
+}
+
+// Login valida as credenciais e emite um token JWT assinado com HS256.
+func (s *AuthService) Login(email, password string) (string, *models.User, error) {
+	var user models.User
+	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", nil, Unauthorized("usuário ou senha incorretos")
+		}
+		return "", nil, err
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		return "", nil, errors.New("usuário ou senha incorretos")
+		return "", nil, Unauthorized("usuário ou senha incorretos")
 	}
 
-	expirationTime := time.Now().Add(24 * time.Hour)
+	now := time.Now()
 	claims := &Claims{
 		UserID: user.ID,
 		Role:   user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(TokenTTL)),
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(config.AppConfig.JWTSecret))
-
-	return tokenString, &user, err
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.jwtSecret)
+	if err != nil {
+		return "", nil, err
+	}
+	return token, &user, nil
 }
 
-func CreateUser(name, email, password, role string) error {
-	var existingUser models.User
-	if result := database.DB.Where("email = ?", email).First(&existingUser); result.Error == nil {
-		return errors.New("Este e-mail já está cadastrado no sistema")
+// Me retorna o usuário identificado pelo token.
+func (s *AuthService) Me(id uint) (*models.User, error) {
+	var user models.User
+	if err := s.db.Omit("password").First(&user, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, NotFound("Usuário não encontrado")
+		}
+		return nil, err
 	}
+	return &user, nil
+}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return err
-	}
-
+// CreateUser cadastra um usuário com a senha em hash BCrypt (RN07).
+// A unicidade do e-mail é garantida pelo índice único: a violação é
+// traduzida para conflito, sem janela de corrida (check-then-act).
+func (s *AuthService) CreateUser(name, email, password, role string) (*models.User, error) {
 	if role == "" {
 		role = "user"
 	}
-
-	user := models.User{
-		Name:     name,
-		Email:    email,
-		Password: string(hashedPassword),
-		Role:     role,
+	if role != "user" && role != "admin" {
+		return nil, Invalid("papel inválido: use 'admin' ou 'user'")
 	}
 
-	return database.DB.Create(&user).Error
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	user := models.User{Name: name, Email: email, Password: string(hash), Role: role}
+	if err := s.db.Create(&user).Error; err != nil {
+		if isUniqueViolation(err) {
+			return nil, Conflict("Este e-mail já está cadastrado no sistema")
+		}
+		return nil, err
+	}
+	return &user, nil
 }
 
-func EnsureAdmin() {
+// EnsureAdmin semeia o administrador padrão na primeira execução.
+// Retorna true quando o usuário foi criado nesta chamada.
+func (s *AuthService) EnsureAdmin(name, email, password string) (bool, error) {
 	var count int64
-	database.DB.Model(&models.User{}).Where("email = ?", config.AppConfig.AdminEmail).Count(&count)
-
-	if count == 0 {
-		err := CreateUser(config.AppConfig.AdminName, config.AppConfig.AdminEmail, config.AppConfig.AdminPassword, "admin")
-		if err != nil {
-			log.Printf("Erro ao criar admin: %v", err)
-		} else {
-			log.Println("✅ Admin padrão criado com role 'admin'")
-		}
+	if err := s.db.Model(&models.User{}).Where("email = ?", email).Count(&count).Error; err != nil {
+		return false, err
 	}
+	if count > 0 {
+		return false, nil
+	}
+
+	if _, err := s.CreateUser(name, email, password, "admin"); err != nil {
+		// Outro processo pode ter semeado no mesmo instante.
+		if errors.Is(err, ErrConflict) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }

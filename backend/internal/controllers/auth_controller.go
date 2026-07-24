@@ -1,36 +1,41 @@
 package controllers
 
 import (
-	"adamanagement/backend/internal/models"
-	"adamanagement/backend/internal/services"
-	"adamanagement/backend/pkg/database"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"adamanagement/backend/internal/middlewares"
+	"adamanagement/backend/internal/services"
 )
 
-type LoginInput struct {
+type AuthHandler struct {
+	svc *services.AuthService
+}
+
+func NewAuthHandler(svc *services.AuthService) *AuthHandler { return &AuthHandler{svc: svc} }
+
+type loginInput struct {
 	Email    string `json:"email" binding:"required"`
 	Password string `json:"password" binding:"required"`
 }
 
-type RegisterInput struct {
+type registerInput struct {
 	Name     string `json:"name" binding:"required"`
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=6"`
 	Role     string `json:"role"`
 }
 
-func LoginHandler(c *gin.Context) {
-	var input LoginInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+func (h *AuthHandler) Login(c *gin.Context) {
+	var in loginInput
+	if !bindJSON(c, &in) {
 		return
 	}
 
-	token, user, err := services.Login(input.Email, input.Password)
+	token, user, err := h.svc.Login(in.Email, in.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		respondError(c, err)
 		return
 	}
 
@@ -45,13 +50,16 @@ func LoginHandler(c *gin.Context) {
 	})
 }
 
-func GetMeHandler(c *gin.Context) {
-	rawID, _ := c.Get("userID")
-	userIDFloat, _ := rawID.(float64)
+func (h *AuthHandler) Me(c *gin.Context) {
+	id, ok := middlewares.UserID(c)
+	if !ok {
+		respondError(c, services.Unauthorized("sessão inválida"))
+		return
+	}
 
-	var user models.User
-	if err := database.DB.Omit("password").First(&user, uint(userIDFloat)).Error; err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não encontrado"})
+	user, err := h.svc.Me(id)
+	if err != nil {
+		respondError(c, err)
 		return
 	}
 
@@ -63,28 +71,15 @@ func GetMeHandler(c *gin.Context) {
 	})
 }
 
-func RegisterHandler(c *gin.Context) {
-	role, exists := c.Get("role")
-	if !exists || role != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Apenas administradores podem criar novos usuários."})
+func (h *AuthHandler) Register(c *gin.Context) {
+	var in registerInput
+	if !bindJSON(c, &in) {
 		return
 	}
 
-	var input RegisterInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if _, err := h.svc.CreateUser(in.Name, in.Email, in.Password, in.Role); err != nil {
+		respondError(c, err)
 		return
 	}
-
-	if err := services.CreateUser(input.Name, input.Email, input.Password, input.Role); err != nil {
-		if err.Error() == "este e-mail já está cadastrado no sistema" {
-			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao criar usuário"})
-		return
-	}
-
 	c.JSON(http.StatusCreated, gin.H{"message": "Usuário criado com sucesso"})
 }
