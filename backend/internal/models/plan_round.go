@@ -9,6 +9,12 @@ import "gorm.io/gorm"
 type PlanRound struct {
 	gorm.Model
 
+	// BaseSemester é o semestre "corrente" no momento da abertura (o último
+	// com dados). Define o grupo de alunos da rodada (PAE/PIC nesse semestre)
+	// como um snapshot — não muda quando novos dados são importados depois.
+	BaseSemesterID uint     `json:"base_semester_id"`
+	BaseSemester   Semester `json:"base_semester" gorm:"foreignKey:BaseSemesterID"`
+
 	Period1SemesterID uint     `json:"period1_semester_id"`
 	Period1           Semester `json:"period1" gorm:"foreignKey:Period1SemesterID"`
 

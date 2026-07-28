@@ -19,9 +19,9 @@ func NewStudyPlanService(db *gorm.DB, rounds *PlanRoundService) *StudyPlanServic
 
 // ensureEligible aplica a elegibilidade do plano por rodada: precisa haver
 // rodada aberta (RN17/RN19), o semestre precisa ser um dos períodos-alvo
-// dela, e o enquadramento mais recente do aluno precisa ser PAE ou PIC
-// (RN18) — como os períodos-alvo são futuros, a elegibilidade não vem do
-// registro do semestre-alvo. Vale para aluno (self) e coordenador (fallback).
+// dela, e o aluno precisa ter estado em PAE ou PIC no **semestre-base** da
+// rodada (RN18) — coerente com o grupo de alunos da rodada, que é definido
+// por esse mesmo semestre-base. Vale para aluno (self) e coordenador.
 func (s *StudyPlanService) ensureEligible(studentID, semesterID uint) error {
 	round, err := s.rounds.currentOrNil()
 	if err != nil {
@@ -34,7 +34,7 @@ func (s *StudyPlanService) ensureEligible(studentID, semesterID uint) error {
 		return Invalid("o semestre informado não faz parte da rodada atual")
 	}
 
-	status, err := latestStatus(s.db, studentID)
+	status, err := statusInSemester(s.db, studentID, round.BaseSemesterID)
 	if err != nil {
 		return err
 	}

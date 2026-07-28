@@ -23,6 +23,7 @@ import StudentActions from './pages/StudentActions';
 import IndicatorsReport from './pages/Reports/IndicatorsReport';
 import Disciplines from './pages/Disciplines';
 import PlanRounds from './pages/PlanRounds';
+import RoundDetail from './pages/RoundDetail';
 import CoordinatorStudentPlan from './pages/CoordinatorStudentPlan';
 
 import { ToastContainer } from 'react-toastify';
@@ -83,7 +84,8 @@ function App() {
               <Route path="/disciplines" element={<Staff><Disciplines /></Staff>} />
               <Route path="/reports/indicators" element={<Staff><IndicatorsReport /></Staff>} />
               <Route path="/planos" element={<Staff><PlanRounds /></Staff>} />
-              <Route path="/planos/:registration" element={<Staff><CoordinatorStudentPlan /></Staff>} />
+              <Route path="/planos/:roundId" element={<Staff><RoundDetail /></Staff>} />
+              <Route path="/planos/:roundId/:registration" element={<Staff><CoordinatorStudentPlan /></Staff>} />
             </Routes>
           </BrowserRouter>
         </SemesterProvider>

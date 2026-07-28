@@ -50,6 +50,7 @@ func register(api *gin.RouterGroup, h Handlers, jwtSecret string) {
 		self.Use(middlewares.RequireSelfOrStaff())
 		{
 			self.GET("/students/:registration/history", h.Students.History)
+			self.GET("/students/:registration/rounds", h.Rounds.StudentRounds)
 			self.GET("/students/:registration/plan", h.Plans.Get)
 			self.POST("/students/:registration/plan", h.Plans.Create)
 			self.PUT("/students/:registration/plan", h.Plans.Update)
@@ -75,8 +76,10 @@ func register(api *gin.RouterGroup, h Handlers, jwtSecret string) {
 			staff.DELETE("/disciplines/:id", h.Disciplines.Delete)
 
 			staff.GET("/rounds", h.Rounds.List)
+			staff.GET("/rounds/students", h.Rounds.Cohort) // ?round_id=X → rodada + alunos do semestre-base
 			staff.POST("/rounds", h.Rounds.Open)
 			staff.PUT("/rounds/:id/close", h.Rounds.Close)
+			staff.PUT("/rounds/:id/reopen", h.Rounds.Reopen)
 		}
 
 		// Perfil próprio: staff edita seu usuário; regra completa no service.

@@ -109,17 +109,19 @@ O desenvolvimento seguiu um modelo iterativo e incremental, com validação cont
 - O servidor recusa a criação de ações para alunos com status `Em regularidade` (HTTP 403); a interface já desabilita o botão nesses casos.
 
 ### Plano de integralização curricular (PAE/PIC) — rodada de cadastro
-O registro do plano foi reformulado para dar autonomia ao aluno. Em vez de um botão por linha no relatório, há agora uma **rodada de cadastro** controlada pela coordenação e uma **página dedicada**:
+O registro do plano foi reformulado para dar autonomia ao aluno. Em vez de um botão por linha no relatório, há agora uma **rodada de cadastro** controlada pela coordenação e uma **página dedicada** (não afetada pelo seletor global de semestre):
 
-- A coordenação **abre uma rodada** informando explicitamente os **dois períodos-alvo** (ex.: `2026/1` e `2026/2`). Existe no máximo **uma rodada aberta** por vez.
+- A coordenação **abre uma rodada** informando os **dois períodos-alvo** (ex.: `2026/1` e `2026/2`). O **semestre-base** — o último semestre com dados no momento da abertura — é gravado como **snapshot** e define o grupo de alunos da rodada. Existe no máximo **uma rodada aberta** por vez.
+- A tela `/planos` **lista as rodadas** (abertas e encerradas); ao **Entrar** numa rodada, aparecem **os alunos que estavam em PAE/PIC no semestre-base** daquela rodada — a lista não muda com o seletor global.
 - Os **alunos em PAE/PIC** entram na sua área e montam, **para cada um dos dois períodos**, as disciplinas que pretendem cursar (escolhidas do catálogo).
-- Elegibilidade: como os períodos-alvo são **futuros** (ainda não importados), a permissão vem do **enquadramento mais recente** do aluno ser PAE ou PIC — não do registro do período-alvo.
+- Elegibilidade: como os períodos-alvo são **futuros** (ainda não importados), a permissão vem do enquadramento do aluno **no semestre-base da rodada** ser PAE ou PIC.
 - O plano de cada período é único por aluno e semestre; salvar de novo **atualiza** (substitui integralmente as disciplinas daquele período).
-- A **coordenação também registra/edita** o plano de qualquer aluno (fallback), pela página de Planos de Integralização.
+- **Rodada encerrada é somente leitura** (aluno e coordenação); para editar de novo, a coordenação **reabre** a rodada (reabrir fecha a que estiver aberta, mantendo uma só).
+- A **coordenação também registra/edita** o plano de qualquer aluno da rodada aberta (fallback), pela página de Planos de Integralização.
 
 ### Área do aluno (autoatendimento)
-- **Autocadastro por matrícula**: o aluno informa a matrícula (que já existe na base importada) e define uma senha; o **login passa a ser a matrícula**. Não há e-mail nos dados institucionais, então a matrícula é a identidade.
-- O aluno vê o **próprio enquadramento** e a rodada aberta, e só acessa os **próprios dados** — sem relatórios, sem outros alunos, sem funções administrativas.
+- **Autocadastro por matrícula**: o aluno informa a matrícula (que já existe na base importada) e define uma senha; o **login passa a ser a matrícula**. Não há e-mail nos dados institucionais, então a matrícula é a identidade. O token liga o aluno ao seu registro (`student_id`), dando acesso ao próprio histórico.
+- O aluno vê o **próprio enquadramento**, edita as disciplinas da **rodada aberta** e consulta seus **planos de rodadas anteriores** (somente leitura). Só acessa os **próprios dados** — sem relatórios, sem outros alunos, sem funções administrativas.
 
 ### Disciplinas
 - CRUD do catálogo de disciplinas (código e nome), ordenado alfabeticamente por nome.
@@ -311,8 +313,9 @@ ADAManagement/
 │   │   │   ├── StudentLogin.jsx      # login do aluno (matrícula)
 │   │   │   ├── StudentRegister.jsx   # autocadastro do aluno
 │   │   │   ├── StudentPlanPage.jsx   # área do aluno: enquadramento + plano dos 2 períodos
-│   │   │   ├── PlanRounds.jsx        # coordenação: abrir/fechar rodada + alunos PAE/PIC
-│   │   │   ├── CoordinatorStudentPlan.jsx # coordenação: editar plano de um aluno
+│   │   │   ├── PlanRounds.jsx        # coordenação: lista de rodadas + abrir/encerrar/reabrir
+│   │   │   ├── RoundDetail.jsx       # coordenação: alunos (PAE/PIC do semestre-base) da rodada
+│   │   │   ├── CoordinatorStudentPlan.jsx # coordenação: editar plano de um aluno na rodada
 │   │   │   ├── Home.jsx              # painel de módulos
 │   │   │   ├── Profile.jsx
 │   │   │   ├── ImportData.jsx
@@ -384,11 +387,12 @@ study_plan_disciplines                      -- tabela associativa N:N
   study_plan_id · discipline_id
 
 plan_rounds                                 -- rodada de cadastro de planos
-  id · period1_semester_id → semesters.id · period2_semester_id → semesters.id
+  id · base_semester_id → semesters.id       -- snapshot do semestre corrente na abertura
+  period1_semester_id → semesters.id · period2_semester_id → semesters.id
   open (índice) · opened_by_user_id
 ```
 
-Cada um dos dois períodos-alvo de uma `plan_round` é um `semesters` (criado pelo código informado, se ainda não existir). O plano de um período é, portanto, um `study_plans (aluno, semestre)` — o modelo de plano é reaproveitado; a rodada só define a janela e os dois semestres. Quando os dados reais desses períodos forem importados depois, casam pelo mesmo código, sem duplicação.
+Cada um dos dois períodos-alvo de uma `plan_round` é um `semesters` (criado pelo código informado, se ainda não existir). O plano de um período é, portanto, um `study_plans (aluno, semestre)` — o modelo de plano é reaproveitado; a rodada só define a janela e os dois semestres. Quando os dados reais desses períodos forem importados depois, casam pelo mesmo código, sem duplicação. O `base_semester_id` guarda o **semestre corrente na abertura** (o último com registros acadêmicos) e define, como snapshot, o grupo de alunos da rodada (PAE/PIC nesse semestre).
 
 **Campos de `academic_records`**
 
@@ -467,9 +471,11 @@ O índice único `idx_student_semester` garante, no próprio banco, que não exi
 | RN15 | Rotas administrativas (importação, cadastro/listagem/exclusão de usuários) exigem papel `admin`, verificado no servidor. | `middlewares/require_role.go` |
 | RN16 | Autocadastro do aluno só é aceito para matrícula **já existente** na base e **ainda sem senha**; senha ≥ 6 caracteres. | `student_auth_service.go` (HTTP 404/409/400) |
 | RN17 | Plano só pode ser registrado/editado com uma **rodada aberta** e para um dos **dois períodos-alvo** dela. | `study_plan_service.go` (`ensureEligible`, HTTP 403/400) |
-| RN18 | A elegibilidade PAE/PIC do plano usa o **enquadramento mais recente** do aluno (maior código de semestre). | `services/student_service.go` (`latestStatus`) |
-| RN19 | No máximo **uma rodada de cadastro aberta** por vez — abrir uma nova fecha a anterior, em transação. | `plan_round_service.go` |
+| RN18 | A elegibilidade PAE/PIC do plano usa o enquadramento do aluno **no semestre-base da rodada** (mesma base que define o grupo de alunos). | `study_plan_service.go` / `plan_round_service.go` (`statusInSemester`) |
+| RN19 | No máximo **uma rodada de cadastro aberta** por vez — abrir (ou reabrir) uma fecha a anterior, em transação. | `plan_round_service.go` |
 | RN20 | O aluno (`role="student"`) só acessa os **próprios dados**: a matrícula da rota tem de ser a do token. | `middlewares/require_role.go` (`RequireSelfOrStaff`, HTTP 403) |
+| RN21 | O **semestre-base** da rodada é o último semestre com registros acadêmicos no momento da abertura, gravado como snapshot; abrir sem dados importados é bloqueado. | `plan_round_service.go` (`latestDataSemester`, HTTP 400) |
+| RN22 | Rodada **encerrada é somente leitura**; editar exige **reabrir** a rodada. O grupo de alunos de uma rodada são os PAE/PIC do seu semestre-base. | `plan_round_service.go` (`Reopen`, `Cohort`) + `ensureEligible` |
 
 ---
 
@@ -490,8 +496,9 @@ O índice único `idx_student_semester` garante, no próprio banco, que não exi
 | `/reports/indicators` | Painel de indicadores | staff |
 | `/students/:registration` | Histórico individual do aluno | staff |
 | `/students/:registration/actions` | Ações de acompanhamento | staff |
-| `/planos` | Rodada de cadastro + alunos em PAE/PIC | staff |
-| `/planos/:registration` | Plano de integralização de um aluno (coordenação) | staff |
+| `/planos` | Lista de rodadas + abrir/encerrar/reabrir | staff |
+| `/planos/:roundId` | Alunos (PAE/PIC do semestre-base) de uma rodada | staff |
+| `/planos/:roundId/:registration` | Plano de um aluno na rodada (coordenação) | staff |
 | `/disciplines` | Disciplinas | staff |
 
 Todas as rotas, exceto as públicas, exigem sessão ativa; o `PrivateRoute` também restringe por papel — um aluno que tente uma rota de staff é enviado para `/aluno`, e vice-versa. (staff = `admin` ou `user`.)
@@ -556,10 +563,13 @@ Fora da API, `GET /health` (sem autenticação) responde ao *health check* da pl
 
 | Método | Rota | Acesso | Parâmetros | Descrição |
 |---|---|---|---|---|
-| `GET` | `/rounds/current` | Autenticado | — | Rodada aberta (os 2 períodos-alvo); 404 se nenhuma |
-| `GET` | `/rounds` | **Staff** | — | Histórico de rodadas |
-| `POST` | `/rounds` | **Staff** | corpo: `period1`, `period2` | Abre rodada (fecha a anterior; períodos distintos) |
-| `PUT` | `/rounds/:id/close` | **Staff** | — | Encerra a rodada |
+| `GET` | `/rounds/current` | Autenticado | — | Rodada aberta (base + 2 períodos); 404 se nenhuma |
+| `GET` | `/rounds` | **Staff** | — | Lista de rodadas (base, períodos, aberta/encerrada) |
+| `POST` | `/rounds` | **Staff** | corpo: `period1`, `period2` | Abre rodada; base = último semestre com dados (400 sem dados); fecha a anterior; períodos distintos |
+| `PUT` | `/rounds/:id/close` | **Staff** | — | Encerra a rodada (fica somente leitura) |
+| `PUT` | `/rounds/:id/reopen` | **Staff** | — | Reabre a rodada (fecha a que estiver aberta) |
+| `GET` | `/rounds/students` | **Staff** | `round_id` **(obrigatório)** | `{ round, students }` — alunos PAE/PIC do semestre-base da rodada |
+| `GET` | `/students/:registration/rounds` | **Self ou Staff** | — | Rodadas do aluno (onde esteve em PAE/PIC no semestre-base) + disciplinas por período |
 | `GET` | `/students/:registration/plan` | **Self ou Staff** | `semester_id` **(obrigatório)** | Plano do aluno no semestre (404 se não existir) |
 | `POST` | `/students/:registration/plan` | **Self ou Staff** | corpo: `semester_id`, `discipline_ids[]` | Cria plano (403 sem rodada aberta ou fora de PAE/PIC; 400 se o semestre não for da rodada; 409 se já existir) |
 | `PUT` | `/students/:registration/plan` | **Self ou Staff** | corpo: `semester_id`, `discipline_ids[]` | Substitui as disciplinas do plano (mesmas validações) |
