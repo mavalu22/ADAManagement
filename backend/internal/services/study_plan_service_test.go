@@ -84,26 +84,28 @@ func TestStudyPlanCreateRejectsNonPaePic(t *testing.T) {
 	}
 }
 
-func TestStudyPlanEligibilityUsesLatestStatus(t *testing.T) {
+func TestStudyPlanEligibilityUsesBaseSemesterStatus(t *testing.T) {
 	db := newTestDB(t)
 	rounds := NewPlanRoundService(db)
 	plans := NewStudyPlanService(db, rounds)
 
-	// Antigo semestre em regularidade; o mais recente é PIC → elegível.
+	// Antigo semestre em regularidade; o mais recente (semestre-base) é PIC → elegível.
 	student := seedStudentWithStatus(t, db, "2022001", "2024/1", models.StatusRegular)
 	var recent models.Semester
 	db.FirstOrCreate(&recent, models.Semester{Code: "2025/2"})
 	db.Create(&models.AcademicRecord{StudentID: student.ID, SemesterID: recent.ID, Status: models.StatusPIC})
 
-	round := openRoundFor(t, rounds, "2026/1", "2026/2")
+	round := openRoundFor(t, rounds, "2026/1", "2026/2") // base = 2025/2 (PIC)
 	if _, err := plans.Create("2022001", round.Period2SemesterID, nil); err != nil {
-		t.Fatalf("enquadramento mais recente (PIC) deve permitir; obtive %v", err)
+		t.Fatalf("status no semestre-base (PIC) deve permitir; obtive %v", err)
 	}
 }
 
 func TestPlanRoundOnlyOneOpen(t *testing.T) {
 	db := newTestDB(t)
 	rounds := NewPlanRoundService(db)
+	// Open exige dados importados (semestre-base).
+	seedStudentWithStatus(t, db, "2022001", "2025/2", models.StatusPAE)
 
 	openRoundFor(t, rounds, "2026/1", "2026/2")
 	openRoundFor(t, rounds, "2026/2", "2027/1")

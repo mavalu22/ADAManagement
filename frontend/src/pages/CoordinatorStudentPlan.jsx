@@ -11,48 +11,43 @@ import Header from '../components/Header';
 import PlanPeriodEditor from '../components/PlanPeriodEditor';
 import api from '../services/api';
 
-// Página da coordenação para registrar/editar o plano de um aluno (fallback).
-// Reusa os mesmos editores de período da área do aluno.
+// Página da coordenação para registrar/editar o plano de um aluno dentro de
+// uma rodada específica (fallback). Editável apenas se a rodada estiver aberta.
 const CoordinatorStudentPlan = () => {
-  const { registration } = useParams();
+  const { roundId, registration } = useParams();
   const navigate = useNavigate();
 
+  const [round, setRound] = useState(null);
   const [studentName, setStudentName] = useState('');
   const [status, setStatus] = useState('');
-  const [round, setRound] = useState(null);
   const [disciplines, setDisciplines] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [historyRes, disciplinesRes] = await Promise.all([
-          api.get(`/students/${registration}/history`),
+        const [cohortRes, disciplinesRes] = await Promise.all([
+          api.get(`/rounds/students?round_id=${roundId}`),
           api.get('/disciplines'),
         ]);
-        setStudentName(historyRes.data?.student?.name || registration);
-        const history = historyRes.data?.history || [];
-        // Histórico vem ordenado por semestre asc; o último é o mais recente.
-        setStatus(history.length ? history[history.length - 1].status : '');
+        setRound(cohortRes.data.round);
         setDisciplines(disciplinesRes.data || []);
-
-        try {
-          const roundRes = await api.get('/rounds/current');
-          setRound(roundRes.data);
-        } catch (err) {
-          if (err.response?.status !== 404) throw err;
-          setRound(null);
-        }
+        const student = (cohortRes.data.students || []).find(s => s.registration === registration);
+        setStudentName(student?.name || registration);
+        setStatus(student?.status || '');
       } catch {
-        toast.error('Erro ao carregar os dados do aluno.');
+        toast.error('Erro ao carregar os dados do plano.');
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, [registration]);
+  }, [roundId, registration]);
 
   if (loading) return <LinearProgress />;
+  if (!round) return <Typography sx={{ p: 4 }}>Rodada não encontrada.</Typography>;
+
+  const readOnly = !round.open;
 
   return (
     <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -60,50 +55,50 @@ const CoordinatorStudentPlan = () => {
       <Container maxWidth="lg" sx={{ mt: 4, mb: 6 }}>
 
         <Paper sx={{ p: 3, mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
             <Tooltip title="Voltar">
-              <IconButton onClick={() => navigate('/planos')}>
-                <ArrowBackIcon />
-              </IconButton>
+              <IconButton onClick={() => navigate(`/planos/${roundId}`)}><ArrowBackIcon /></IconButton>
             </Tooltip>
             <Box sx={{ flexGrow: 1 }}>
               <Typography variant="h5" fontWeight="bold" color="primary">
-                Plano de Integralização — {studentName}
+                Plano — {studentName}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Matrícula {registration}
+                Matrícula {registration} · rodada base {round.base_semester?.code}
               </Typography>
             </Box>
-            {status && <Chip label={status} color={status === 'PAE' || status === 'PIC' ? 'warning' : 'default'} />}
+            {status && <Chip label={status} color="warning" />}
           </Box>
         </Paper>
 
-        {!round?.open ? (
-          <Alert severity="info">
-            Não há rodada de cadastro aberta. Abra uma rodada na página de Planos de Integralização para editar.
+        {readOnly && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Rodada encerrada — somente leitura. Reabra a rodada para editar.
           </Alert>
-        ) : (
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <PlanPeriodEditor
-                registration={registration}
-                semesterId={round.period1.ID}
-                semesterCode={round.period1.code}
-                label="Período 1"
-                allDisciplines={disciplines}
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <PlanPeriodEditor
-                registration={registration}
-                semesterId={round.period2.ID}
-                semesterCode={round.period2.code}
-                label="Período 2"
-                allDisciplines={disciplines}
-              />
-            </Grid>
-          </Grid>
         )}
+
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <PlanPeriodEditor
+              registration={registration}
+              semesterId={round.period1.ID}
+              semesterCode={round.period1.code}
+              label="Período 1"
+              allDisciplines={disciplines}
+              readOnly={readOnly}
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <PlanPeriodEditor
+              registration={registration}
+              semesterId={round.period2.ID}
+              semesterCode={round.period2.code}
+              label="Período 2"
+              allDisciplines={disciplines}
+              readOnly={readOnly}
+            />
+          </Grid>
+        </Grid>
 
       </Container>
     </Box>

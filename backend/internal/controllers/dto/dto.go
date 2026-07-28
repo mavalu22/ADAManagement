@@ -245,18 +245,20 @@ func NewStudentMe(m models.Student, status string) StudentMe {
 }
 
 type PlanRound struct {
-	ID      uint     `json:"ID"`
-	Open    bool     `json:"open"`
-	Period1 Semester `json:"period1"`
-	Period2 Semester `json:"period2"`
+	ID           uint     `json:"ID"`
+	Open         bool     `json:"open"`
+	BaseSemester Semester `json:"base_semester"`
+	Period1      Semester `json:"period1"`
+	Period2      Semester `json:"period2"`
 }
 
 func NewPlanRound(m models.PlanRound) PlanRound {
 	return PlanRound{
-		ID:      m.ID,
-		Open:    m.Open,
-		Period1: NewSemester(m.Period1),
-		Period2: NewSemester(m.Period2),
+		ID:           m.ID,
+		Open:         m.Open,
+		BaseSemester: NewSemester(m.BaseSemester),
+		Period1:      NewSemester(m.Period1),
+		Period2:      NewSemester(m.Period2),
 	}
 }
 

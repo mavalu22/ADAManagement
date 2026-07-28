@@ -67,6 +67,19 @@ func intQuery(c *gin.Context, name string) (*int, error) {
 	return &n, nil
 }
 
+// queryUintRequired lê um parâmetro numérico obrigatório da query string.
+func queryUintRequired(c *gin.Context, name string) (uint, error) {
+	raw := c.Query(name)
+	if raw == "" {
+		return 0, services.Invalid(name + " é obrigatório")
+	}
+	n, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		return 0, services.Invalid(name + " inválido")
+	}
+	return uint(n), nil
+}
+
 // pagination lê limit/offset da query. Sem limit, a listagem completa é
 // retornada (compatibilidade com o frontend atual).
 func pagination(c *gin.Context) (limit, offset int, err error) {

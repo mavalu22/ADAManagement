@@ -13,7 +13,8 @@ import api from '../services/api';
 // Editor do plano de um único período (semestre). Reutilizado pela área do
 // aluno e pela área do coordenador. Carrega e salva o plano de
 // (registration, semesterId) pelos endpoints existentes de plano.
-const PlanPeriodEditor = ({ registration, semesterId, semesterCode, label, allDisciplines }) => {
+// Com readOnly, apenas exibe as disciplinas (rodada encerrada).
+const PlanPeriodEditor = ({ registration, semesterId, semesterCode, label, allDisciplines, readOnly = false }) => {
   const [rows, setRows] = useState([]);
   const [addingId, setAddingId] = useState('');
   const [existingPlan, setExistingPlan] = useState(null);
@@ -106,54 +107,60 @@ const PlanPeriodEditor = ({ registration, semesterId, semesterCode, label, allDi
                 <TableCell>{d.code}</TableCell>
                 <TableCell>{d.name}</TableCell>
                 <TableCell align="center">
-                  <Tooltip title="Remover">
-                    <IconButton size="small" color="error" onClick={() => handleRemove(d.ID)}>
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                  {!readOnly && (
+                    <Tooltip title="Remover">
+                      <IconButton size="small" color="error" onClick={() => handleRemove(d.ID)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
 
-            <TableRow>
-              <TableCell colSpan={2} sx={{ pt: 1.5, pb: 1 }}>
-                <FormControl fullWidth size="small">
-                  <Select
-                    value={addingId}
-                    onChange={e => setAddingId(e.target.value)}
-                    displayEmpty
-                    disabled={availableDisciplines.length === 0}
-                  >
-                    <MenuItem value="" disabled>
-                      {availableDisciplines.length === 0
-                        ? 'Todas as disciplinas já adicionadas'
-                        : 'Selecione uma disciplina...'}
-                    </MenuItem>
-                    {availableDisciplines.map(d => (
-                      <MenuItem key={d.ID} value={d.ID}>{d.code} — {d.name}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </TableCell>
-              <TableCell align="center" sx={{ pt: 1.5, pb: 1 }}>
-                <Tooltip title="Adicionar">
-                  <span>
-                    <IconButton size="small" color="primary" onClick={handleAdd} disabled={!addingId}>
-                      <AddIcon fontSize="small" />
-                    </IconButton>
-                  </span>
-                </Tooltip>
-              </TableCell>
-            </TableRow>
+            {!readOnly && (
+              <TableRow>
+                <TableCell colSpan={2} sx={{ pt: 1.5, pb: 1 }}>
+                  <FormControl fullWidth size="small">
+                    <Select
+                      value={addingId}
+                      onChange={e => setAddingId(e.target.value)}
+                      displayEmpty
+                      disabled={availableDisciplines.length === 0}
+                    >
+                      <MenuItem value="" disabled>
+                        {availableDisciplines.length === 0
+                          ? 'Todas as disciplinas já adicionadas'
+                          : 'Selecione uma disciplina...'}
+                      </MenuItem>
+                      {availableDisciplines.map(d => (
+                        <MenuItem key={d.ID} value={d.ID}>{d.code} — {d.name}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </TableCell>
+                <TableCell align="center" sx={{ pt: 1.5, pb: 1 }}>
+                  <Tooltip title="Adicionar">
+                    <span>
+                      <IconButton size="small" color="primary" onClick={handleAdd} disabled={!addingId}>
+                        <AddIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </TableContainer>
 
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-        <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} disabled={saving || loading}>
-          {saving ? 'Salvando...' : existingPlan ? 'Atualizar' : 'Registrar'}
-        </Button>
-      </Box>
+      {!readOnly && (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+          <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} disabled={saving || loading}>
+            {saving ? 'Salvando...' : existingPlan ? 'Atualizar' : 'Registrar'}
+          </Button>
+        </Box>
+      )}
     </Paper>
   );
 };

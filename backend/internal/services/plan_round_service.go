@@ -15,9 +15,27 @@ type PlanRoundService struct {
 
 func NewPlanRoundService(db *gorm.DB) *PlanRoundService { return &PlanRoundService{db: db} }
 
-// Open abre uma rodada para os dois períodos informados (RN17). Garante os
-// semestres pelos códigos, fecha qualquer rodada aberta e cria a nova aberta
-// na mesma transação — mantendo o invariante de no máximo uma aberta (RN19).
+// CohortStudent é um aluno do grupo de uma rodada (PAE/PIC no semestre-base).
+type CohortStudent struct {
+	Registration string `json:"registration"`
+	Name         string `json:"name"`
+	Status       string `json:"status"`
+}
+
+// StudentRoundEntry é uma rodada do ponto de vista do aluno: a rodada, o
+// enquadramento dele no semestre-base e as disciplinas já registradas em
+// cada período. Alimenta a área do aluno (histórico + rodada editável).
+type StudentRoundEntry struct {
+	Round              models.PlanRound
+	Status             string
+	Period1Disciplines []models.Discipline
+	Period2Disciplines []models.Discipline
+}
+
+// Open abre uma rodada para os dois períodos informados (RN17). O
+// semestre-base é o último com dados no momento da abertura (RN21) e fica
+// gravado como snapshot. Fecha qualquer rodada aberta e cria a nova aberta
+// na mesma transação — invariante de no máximo uma aberta (RN19).
 func (s *PlanRoundService) Open(period1Code, period2Code string, userID uint) (*models.PlanRound, error) {
 	period1Code = strings.TrimSpace(period1Code)
 	period2Code = strings.TrimSpace(period2Code)
@@ -31,6 +49,14 @@ func (s *PlanRoundService) Open(period1Code, period2Code string, userID uint) (*
 
 	var round models.PlanRound
 	err := s.db.Transaction(func(tx *gorm.DB) error {
+		base, err := latestDataSemester(tx)
+		if err != nil {
+			return err
+		}
+		if base == nil {
+			return Invalid("importe dados acadêmicos antes de abrir uma rodada")
+		}
+
 		sem1, err := ensureSemester(tx, period1Code)
 		if err != nil {
 			return err
@@ -46,6 +72,7 @@ func (s *PlanRoundService) Open(period1Code, period2Code string, userID uint) (*
 		}
 
 		round = models.PlanRound{
+			BaseSemesterID:    base.ID,
 			Period1SemesterID: sem1.ID,
 			Period2SemesterID: sem2.ID,
 			Open:              true,
@@ -60,7 +87,8 @@ func (s *PlanRoundService) Open(period1Code, period2Code string, userID uint) (*
 	return s.load(round.ID)
 }
 
-// Close encerra a rodada, impedindo novos registros/edições de plano.
+// Close encerra a rodada, impedindo novos registros/edições de plano
+// (RN22: rodada fechada é somente leitura).
 func (s *PlanRoundService) Close(id uint) error {
 	var round models.PlanRound
 	if err := s.db.First(&round, id).Error; err != nil {
@@ -72,10 +100,33 @@ func (s *PlanRoundService) Close(id uint) error {
 	return s.db.Model(&round).Update("open", false).Error
 }
 
+// Reopen reabre uma rodada encerrada para permitir edições novamente,
+// fechando qualquer outra aberta para manter o invariante de uma só (RN19).
+func (s *PlanRoundService) Reopen(id uint) (*models.PlanRound, error) {
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var round models.PlanRound
+		if err := tx.First(&round, id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return NotFound("Rodada não encontrada")
+			}
+			return err
+		}
+		if err := tx.Model(&models.PlanRound{}).Where("open = ?", true).
+			Update("open", false).Error; err != nil {
+			return err
+		}
+		return tx.Model(&round).Update("open", true).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return s.load(id)
+}
+
 // Current devolve a rodada aberta (RN19: no máximo uma).
 func (s *PlanRoundService) Current() (*models.PlanRound, error) {
 	var round models.PlanRound
-	err := s.db.Preload("Period1").Preload("Period2").
+	err := s.preloaded().
 		Where("open = ?", true).
 		Order("id desc").
 		First(&round).Error
@@ -101,18 +152,100 @@ func (s *PlanRoundService) currentOrNil() (*models.PlanRound, error) {
 	return round, nil
 }
 
+func (s *PlanRoundService) Get(id uint) (*models.PlanRound, error) {
+	var round models.PlanRound
+	if err := s.preloaded().First(&round, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, NotFound("Rodada não encontrada")
+		}
+		return nil, err
+	}
+	return &round, nil
+}
+
 func (s *PlanRoundService) List() ([]models.PlanRound, error) {
 	var rounds []models.PlanRound
-	if err := s.db.Preload("Period1").Preload("Period2").
-		Order("id desc").Find(&rounds).Error; err != nil {
+	if err := s.preloaded().Order("id desc").Find(&rounds).Error; err != nil {
 		return nil, err
 	}
 	return rounds, nil
 }
 
+// Cohort devolve a rodada e os alunos em PAE/PIC no semestre-base dela.
+// A lista independe do seletor global — usa o snapshot da rodada.
+func (s *PlanRoundService) Cohort(roundID uint) (*models.PlanRound, []CohortStudent, error) {
+	round, err := s.Get(roundID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var students []CohortStudent
+	if err := s.db.Table("academic_records").
+		Select("students.registration, students.name, academic_records.status").
+		Joins("JOIN students ON students.id = academic_records.student_id").
+		Where("academic_records.semester_id = ?", round.BaseSemesterID).
+		Where("academic_records.status IN ?", []string{models.StatusPAE, models.StatusPIC}).
+		Order("students.name asc").
+		Scan(&students).Error; err != nil {
+		return nil, nil, err
+	}
+	return round, students, nil
+}
+
+// StudentRounds devolve, para cada rodada em que o aluno esteve em PAE/PIC
+// no semestre-base, a rodada + as disciplinas já registradas em cada
+// período. Ordena da mais recente para a mais antiga.
+func (s *PlanRoundService) StudentRounds(registration string) ([]StudentRoundEntry, error) {
+	var student models.Student
+	if err := s.db.Where("registration = ?", registration).First(&student).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, NotFound("Aluno não encontrado")
+		}
+		return nil, err
+	}
+
+	rounds, err := s.List()
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]StudentRoundEntry, 0, len(rounds))
+	for i := range rounds {
+		round := rounds[i]
+		status, err := statusInSemester(s.db, student.ID, round.BaseSemesterID)
+		if err != nil {
+			return nil, err
+		}
+		if status != models.StatusPAE && status != models.StatusPIC {
+			continue
+		}
+
+		p1, err := planDisciplines(s.db, student.ID, round.Period1SemesterID)
+		if err != nil {
+			return nil, err
+		}
+		p2, err := planDisciplines(s.db, student.ID, round.Period2SemesterID)
+		if err != nil {
+			return nil, err
+		}
+
+		entries = append(entries, StudentRoundEntry{
+			Round:              round,
+			Status:             status,
+			Period1Disciplines: p1,
+			Period2Disciplines: p2,
+		})
+	}
+	return entries, nil
+}
+
+func (s *PlanRoundService) preloaded() *gorm.DB {
+	return s.db.Preload("BaseSemester").Preload("Period1").Preload("Period2")
+}
+
 func (s *PlanRoundService) load(id uint) (*models.PlanRound, error) {
 	var round models.PlanRound
-	if err := s.db.Preload("Period1").Preload("Period2").First(&round, id).Error; err != nil {
+	if err := s.preloaded().First(&round, id).Error; err != nil {
 		return nil, err
 	}
 	return &round, nil
@@ -127,6 +260,55 @@ func ensureSemester(tx *gorm.DB, code string) (*models.Semester, error) {
 		return nil, err
 	}
 	return &semester, nil
+}
+
+// latestDataSemester devolve o semestre de maior código que possui registros
+// acadêmicos (o "corrente"); nil se ainda não há dados importados.
+func latestDataSemester(db *gorm.DB) (*models.Semester, error) {
+	var semester models.Semester
+	err := db.Model(&models.Semester{}).
+		Joins("JOIN academic_records ar ON ar.semester_id = semesters.id AND ar.deleted_at IS NULL").
+		Group("semesters.id").
+		Order("semesters.code desc").
+		First(&semester).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &semester, nil
+}
+
+// statusInSemester devolve o enquadramento do aluno em um semestre
+// específico (define o grupo da rodada por semestre-base). "" se não há
+// registro.
+func statusInSemester(db *gorm.DB, studentID, semesterID uint) (string, error) {
+	var record models.AcademicRecord
+	err := db.Where("student_id = ? AND semester_id = ?", studentID, semesterID).First(&record).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", nil
+		}
+		return "", err
+	}
+	return record.Status, nil
+}
+
+// planDisciplines devolve as disciplinas do plano do aluno naquele semestre
+// (nil se não houver plano).
+func planDisciplines(db *gorm.DB, studentID, semesterID uint) ([]models.Discipline, error) {
+	var plan models.StudyPlan
+	err := db.Preload("Disciplines").
+		Where("student_id = ? AND semester_id = ?", studentID, semesterID).
+		First(&plan).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return plan.Disciplines, nil
 }
 
 // isTargetSemester informa se o semestre é um dos dois períodos da rodada.
