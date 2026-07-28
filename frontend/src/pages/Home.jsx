@@ -15,6 +15,7 @@ import AnalyticsIcon from '@mui/icons-material/Analytics';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
+import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 
 const ModuleCard = ({ icon: Icon, title, description, color, isEmpty, onClick }) => (
   <Paper
@@ -204,6 +205,17 @@ const Home = () => {
               color="#6366F1"
               isEmpty={false}
               onClick={() => navigate('/disciplines')}
+            />
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={4}>
+            <ModuleCard
+              icon={EventAvailableIcon}
+              title="Planos de Integralização"
+              description="Abra a rodada de cadastro dos próximos dois períodos e acompanhe os alunos em PAE/PIC."
+              color="#DB2777"
+              isEmpty={false}
+              onClick={() => navigate('/planos')}
             />
           </Grid>
 

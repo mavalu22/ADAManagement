@@ -35,7 +35,9 @@ export const SemesterProvider = ({ children }) => {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) fetchSemesters();
+    // O seletor de semestre é da coordenação; alunos não acessam /semesters.
+    const stored = JSON.parse(localStorage.getItem('user') || 'null');
+    if (token && stored?.role !== 'student') fetchSemesters();
   }, []);
 
   return (

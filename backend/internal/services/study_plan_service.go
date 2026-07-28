@@ -9,10 +9,40 @@ import (
 )
 
 type StudyPlanService struct {
-	db *gorm.DB
+	db     *gorm.DB
+	rounds *PlanRoundService
 }
 
-func NewStudyPlanService(db *gorm.DB) *StudyPlanService { return &StudyPlanService{db: db} }
+func NewStudyPlanService(db *gorm.DB, rounds *PlanRoundService) *StudyPlanService {
+	return &StudyPlanService{db: db, rounds: rounds}
+}
+
+// ensureEligible aplica a elegibilidade do plano por rodada: precisa haver
+// rodada aberta (RN17/RN19), o semestre precisa ser um dos períodos-alvo
+// dela, e o enquadramento mais recente do aluno precisa ser PAE ou PIC
+// (RN18) — como os períodos-alvo são futuros, a elegibilidade não vem do
+// registro do semestre-alvo. Vale para aluno (self) e coordenador (fallback).
+func (s *StudyPlanService) ensureEligible(studentID, semesterID uint) error {
+	round, err := s.rounds.currentOrNil()
+	if err != nil {
+		return err
+	}
+	if round == nil {
+		return Forbidden("Não há rodada de cadastro de plano aberta")
+	}
+	if !isTargetSemester(round, semesterID) {
+		return Invalid("o semestre informado não faz parte da rodada atual")
+	}
+
+	status, err := latestStatus(s.db, studentID)
+	if err != nil {
+		return err
+	}
+	if status != models.StatusPAE && status != models.StatusPIC {
+		return Forbidden("Plano de integralização disponível apenas para alunos em PAE ou PIC")
+	}
+	return nil
+}
 
 func (s *StudyPlanService) findStudent(registration string) (*models.Student, error) {
 	var student models.Student
@@ -64,18 +94,8 @@ func (s *StudyPlanService) Create(registration string, semesterID uint, discipli
 		return nil, err
 	}
 
-	var record models.AcademicRecord
-	if err := s.db.
-		Where("student_id = ? AND semester_id = ?", student.ID, semesterID).
-		First(&record).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, NotFound("Registro acadêmico não encontrado")
-		}
+	if err := s.ensureEligible(student.ID, semesterID); err != nil {
 		return nil, err
-	}
-
-	if record.Status != models.StatusPAE && record.Status != models.StatusPIC {
-		return nil, Forbidden("Plano de integralização disponível apenas para alunos em PAE ou PIC")
 	}
 
 	plan := models.StudyPlan{StudentID: student.ID, SemesterID: semesterID}
@@ -99,6 +119,10 @@ func (s *StudyPlanService) Create(registration string, semesterID uint, discipli
 func (s *StudyPlanService) Update(registration string, semesterID uint, disciplineIDs []uint) (*models.StudyPlan, error) {
 	student, err := s.findStudent(registration)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := s.ensureEligible(student.ID, semesterID); err != nil {
 		return nil, err
 	}
 

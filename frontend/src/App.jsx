@@ -7,6 +7,9 @@ import { SemesterProvider } from './context/SemesterContext';
 import { ThemeContextProvider } from './context/ThemeContext';
 
 import Login from './pages/Login';
+import StudentLogin from './pages/StudentLogin';
+import StudentRegister from './pages/StudentRegister';
+import StudentPlanPage from './pages/StudentPlanPage';
 import Home from './pages/Home';
 import RegisterUser from './pages/RegisterUser';
 import Profile from './pages/Profile';
@@ -19,24 +22,32 @@ import StudentProfile from './pages/StudentProfile';
 import StudentActions from './pages/StudentActions';
 import IndicatorsReport from './pages/Reports/IndicatorsReport';
 import Disciplines from './pages/Disciplines';
-import StudyPlan from './pages/StudyPlan';
+import PlanRounds from './pages/PlanRounds';
+import CoordinatorStudentPlan from './pages/CoordinatorStudentPlan';
 
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-const PrivateRoute = ({ children }) => {
-  const { authenticated, loading } = useContext(AuthContext);
+const STAFF = ['admin', 'user'];
+
+// PrivateRoute exige sessão e, opcionalmente, um dos papéis informados.
+// Quem não tem o papel é enviado para a sua própria área.
+const PrivateRoute = ({ children, roles }) => {
+  const { authenticated, user, loading } = useContext(AuthContext);
 
   if (loading) {
     return <div>Carregando...</div>;
   }
-
   if (!authenticated) {
     return <Navigate to="/" />;
   }
-
+  if (roles && !roles.includes(user?.role)) {
+    return <Navigate to={user?.role === 'student' ? '/aluno' : '/home'} replace />;
+  }
   return children;
 };
+
+const Staff = ({ children }) => <PrivateRoute roles={STAFF}>{children}</PrivateRoute>;
 
 function App() {
   return (
@@ -47,66 +58,34 @@ function App() {
 
       <AuthProvider>
         <SemesterProvider>
-            <BrowserRouter>
+          <BrowserRouter>
             <Routes>
-                <Route path="/" element={<Login />} />
+              {/* Público */}
+              <Route path="/" element={<Login />} />
+              <Route path="/aluno/login" element={<StudentLogin />} />
+              <Route path="/aluno/cadastro" element={<StudentRegister />} />
 
-                <Route
-                path="/home"
-                element={
-                    <PrivateRoute>
-                    <Home />
-                    </PrivateRoute>
-                }
-                />
+              {/* Área do aluno */}
+              <Route path="/aluno" element={<PrivateRoute roles={['student']}><StudentPlanPage /></PrivateRoute>} />
 
-                <Route
-                path="/register-user"
-                element={
-                    <PrivateRoute>
-                    <RegisterUser />
-                    </PrivateRoute>
-                }
-                />
-
-                <Route
-                path="/profile"
-                element={
-                    <PrivateRoute>
-                    <Profile />
-                    </PrivateRoute>
-                }
-                />
-
-                <Route
-                path="/users"
-                element={
-                    <PrivateRoute>
-                    <UsersList />
-                    </PrivateRoute>
-                }
-                />
-
-                <Route
-                path="/import"
-                element={
-                    <PrivateRoute>
-                    <ImportData />
-                    </PrivateRoute>
-                }
-                />
-                <Route path="/reports/records" element={<PrivateRoute><AcademicReport /></PrivateRoute>} />
-                <Route path="/report/records" element={<PrivateRoute><AcademicReport /></PrivateRoute>} />
-                <Route path="/report/courses" element={<PrivateRoute><CoursesReport /></PrivateRoute>} />
-                <Route path="/report/students" element={<PrivateRoute><StudentsReport /></PrivateRoute>} />
-                <Route path="/students/:registration/actions" element={<PrivateRoute><StudentActions /></PrivateRoute>} />
-                <Route path="/students/:registration/plan" element={<PrivateRoute><StudyPlan /></PrivateRoute>} />
-                <Route path="/students/:registration" element={<PrivateRoute><StudentProfile /></PrivateRoute>} />
-                <Route path="/disciplines" element={<PrivateRoute><Disciplines /></PrivateRoute>} />
-                <Route path="/reports/indicators" element={<PrivateRoute><IndicatorsReport /></PrivateRoute>} />
-
+              {/* Coordenação (admin ou user) */}
+              <Route path="/home" element={<Staff><Home /></Staff>} />
+              <Route path="/register-user" element={<Staff><RegisterUser /></Staff>} />
+              <Route path="/profile" element={<Staff><Profile /></Staff>} />
+              <Route path="/users" element={<Staff><UsersList /></Staff>} />
+              <Route path="/import" element={<Staff><ImportData /></Staff>} />
+              <Route path="/reports/records" element={<Staff><AcademicReport /></Staff>} />
+              <Route path="/report/records" element={<Staff><AcademicReport /></Staff>} />
+              <Route path="/report/courses" element={<Staff><CoursesReport /></Staff>} />
+              <Route path="/report/students" element={<Staff><StudentsReport /></Staff>} />
+              <Route path="/students/:registration/actions" element={<Staff><StudentActions /></Staff>} />
+              <Route path="/students/:registration" element={<Staff><StudentProfile /></Staff>} />
+              <Route path="/disciplines" element={<Staff><Disciplines /></Staff>} />
+              <Route path="/reports/indicators" element={<Staff><IndicatorsReport /></Staff>} />
+              <Route path="/planos" element={<Staff><PlanRounds /></Staff>} />
+              <Route path="/planos/:registration" element={<Staff><CoordinatorStudentPlan /></Staff>} />
             </Routes>
-            </BrowserRouter>
+          </BrowserRouter>
         </SemesterProvider>
       </AuthProvider>
     </ThemeContextProvider>

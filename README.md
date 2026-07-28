@@ -108,10 +108,18 @@ O desenvolvimento seguiu um modelo iterativo e incremental, com validação cont
 - Edição e exclusão em linha das ações já registradas.
 - O servidor recusa a criação de ações para alunos com status `Em regularidade` (HTTP 403); a interface já desabilita o botão nesses casos.
 
-### Plano de integralização curricular (PAE/PIC)
-- Disponível apenas para alunos cujo registro no semestre esteja em **PAE** ou **PIC**; o título da tela muda conforme o enquadramento.
-- Monta-se o plano selecionando disciplinas do catálogo; a lista de disciplinas já adicionadas não reaparece no seletor.
-- Um único plano por aluno e semestre: a partir do segundo salvamento, a tela passa a **atualizar** o plano existente (a atualização substitui integralmente a lista de disciplinas).
+### Plano de integralização curricular (PAE/PIC) — rodada de cadastro
+O registro do plano foi reformulado para dar autonomia ao aluno. Em vez de um botão por linha no relatório, há agora uma **rodada de cadastro** controlada pela coordenação e uma **página dedicada**:
+
+- A coordenação **abre uma rodada** informando explicitamente os **dois períodos-alvo** (ex.: `2026/1` e `2026/2`). Existe no máximo **uma rodada aberta** por vez.
+- Os **alunos em PAE/PIC** entram na sua área e montam, **para cada um dos dois períodos**, as disciplinas que pretendem cursar (escolhidas do catálogo).
+- Elegibilidade: como os períodos-alvo são **futuros** (ainda não importados), a permissão vem do **enquadramento mais recente** do aluno ser PAE ou PIC — não do registro do período-alvo.
+- O plano de cada período é único por aluno e semestre; salvar de novo **atualiza** (substitui integralmente as disciplinas daquele período).
+- A **coordenação também registra/edita** o plano de qualquer aluno (fallback), pela página de Planos de Integralização.
+
+### Área do aluno (autoatendimento)
+- **Autocadastro por matrícula**: o aluno informa a matrícula (que já existe na base importada) e define uma senha; o **login passa a ser a matrícula**. Não há e-mail nos dados institucionais, então a matrícula é a identidade.
+- O aluno vê o **próprio enquadramento** e a rodada aberta, e só acessa os **próprios dados** — sem relatórios, sem outros alunos, sem funções administrativas.
 
 ### Disciplinas
 - CRUD do catálogo de disciplinas (código e nome), ordenado alfabeticamente por nome.
@@ -135,15 +143,16 @@ O desenvolvimento seguiu um modelo iterativo e incremental, com validação cont
 
 ## Perfis de acesso
 
-O modelo de dados tem **dois papéis**: `admin` e `user`. O "Admin Master" não é um papel separado — é o usuário de `ID = 1`, protegido por regra de negócio.
+Há **três papéis**. A coordenação usa `admin`/`user` na tabela `users`; o aluno autentica contra a tabela `students` e recebe o papel `student`. O "Admin Master" não é um papel separado — é o usuário de `ID = 1`, protegido por regra de negócio.
 
 | Perfil | Como é identificado | O que o diferencia |
 |---|---|---|
 | **Admin Master** | `users.id = 1` | Não pode ser excluído nem rebaixado. É semeado na primeira execução a partir de `ADMIN_EMAIL`, `ADMIN_PASSWORD` e `ADMIN_NAME`. |
-| **Administrador** | `role = "admin"` | Único perfil aceito pelo servidor nas rotas administrativas: importação de planilhas e cadastro, listagem e exclusão de usuários. |
-| **Usuário comum** | `role = "user"` | Consulta relatórios, indicadores e históricos; registra ações, planos e disciplinas pela interface. Não vê os módulos administrativos. |
+| **Administrador** | `users.role = "admin"` | Único perfil aceito pelo servidor nas rotas administrativas: importação de planilhas e cadastro, listagem e exclusão de usuários. |
+| **Usuário comum (coordenação)** | `users.role = "user"` | Consulta relatórios, indicadores e históricos; registra ações, disciplinas, rodadas e planos pela interface. Não vê os módulos administrativos. |
+| **Aluno** | token `role = "student"`, ligado a `students.id` | Autocadastra-se por matrícula. Acessa **apenas os próprios dados** (seu enquadramento e seu plano de integralização). Sem relatórios, sem outros alunos, sem escrita de disciplinas. |
 
-> A separação entre perfis é aplicada **no servidor**: as rotas administrativas passam pelo middleware `RequireRole("admin")`, além de a interface ocultar os módulos correspondentes para usuários comuns.
+> A separação entre perfis é aplicada **no servidor** por middlewares: `RequireRole("admin")` nas rotas administrativas, `RequireStaff()` (admin ou user) nas rotas de coordenação, e `RequireSelfOrStaff()` nas rotas de plano/histórico — o aluno só acessa a própria matrícula. A interface também roteia por papel (aluno → área do aluno; staff → painel).
 
 ---
 
@@ -259,25 +268,29 @@ ADAManagement/
 │   │   │   ├── student_controller.go
 │   │   │   ├── action_controller.go
 │   │   │   ├── discipline_controller.go
-│   │   │   └── study_plan_controller.go
+│   │   │   ├── study_plan_controller.go
+│   │   │   ├── student_auth_controller.go   # autocadastro e login do aluno
+│   │   │   └── plan_round_controller.go     # abrir/fechar/consultar rodada
 │   │   ├── middlewares/
-│   │   │   ├── auth_middleware.go       # JWT (HS256) + userID/role tipados no contexto
-│   │   │   └── require_role.go          # RBAC das rotas administrativas
-│   │   ├── models/                   # user, course, semester, student, academic_record,
-│   │   │                             # student_action, discipline, study_plan + constantes de status
-│   │   ├── routes/routes.go          # /api/v1 (alias /api); grupos público/autenticado/admin
+│   │   │   ├── auth_middleware.go       # JWT (HS256) + userID/studentID/role no contexto
+│   │   │   └── require_role.go          # RequireRole/RequireStaff/RequireSelfOrStaff
+│   │   ├── models/                   # user, course, semester, student, academic_record, student_action,
+│   │   │                             # discipline, study_plan, plan_round + constantes de status e papéis
+│   │   ├── routes/routes.go          # /api/v1 (alias /api); grupos por papel (público/auth/self/staff/admin)
 │   │   └── services/                 # Regras de negócio e acesso a dados (um por agregado)
 │   │       ├── errors.go                # sentinelas de erro do domínio
 │   │       ├── rules.go                 # RN02/RN03: aluno crítico e próximo da formatura
-│   │       ├── auth_service.go          # login, JWT, seed do admin
+│   │       ├── auth_service.go          # login staff, JWT, seed do admin
+│   │       ├── student_auth_service.go  # autocadastro/login do aluno + /me do aluno
 │   │       ├── user_service.go
 │   │       ├── import_service.go        # parse testável + persistência transacional
 │   │       ├── report_service.go
 │   │       ├── indicators_service.go
-│   │       ├── student_service.go
+│   │       ├── student_service.go       # histórico + latestStatus (elegibilidade)
 │   │       ├── action_service.go
 │   │       ├── discipline_service.go
-│   │       └── study_plan_service.go
+│   │       ├── study_plan_service.go    # elegibilidade por rodada + enquadramento recente
+│   │       └── plan_round_service.go    # rodada de cadastro (1 aberta por vez)
 │   ├── .env                          # não versionado
 │   ├── .env.example
 │   ├── go.mod
@@ -288,10 +301,18 @@ ADAManagement/
 │   │   ├── _redirects                # SPA no Render: /* → /index.html 200
 │   │   └── ufes-logo.png
 │   ├── src/
-│   │   ├── components/Header.jsx     # cabeçalho, seletor de semestre e menu
-│   │   ├── context/                  # AuthContext, SemesterContext, ThemeContext
+│   │   ├── components/
+│   │   │   ├── Header.jsx            # cabeçalho da coordenação (seletor de semestre e menu)
+│   │   │   ├── StudentHeader.jsx     # cabeçalho enxuto da área do aluno
+│   │   │   └── PlanPeriodEditor.jsx  # editor do plano de um período (reusado aluno/coordenação)
+│   │   ├── context/                  # AuthContext (login staff + aluno), SemesterContext, ThemeContext
 │   │   ├── pages/
-│   │   │   ├── Login.jsx
+│   │   │   ├── Login.jsx             # login da coordenação
+│   │   │   ├── StudentLogin.jsx      # login do aluno (matrícula)
+│   │   │   ├── StudentRegister.jsx   # autocadastro do aluno
+│   │   │   ├── StudentPlanPage.jsx   # área do aluno: enquadramento + plano dos 2 períodos
+│   │   │   ├── PlanRounds.jsx        # coordenação: abrir/fechar rodada + alunos PAE/PIC
+│   │   │   ├── CoordinatorStudentPlan.jsx # coordenação: editar plano de um aluno
 │   │   │   ├── Home.jsx              # painel de módulos
 │   │   │   ├── Profile.jsx
 │   │   │   ├── ImportData.jsx
@@ -299,7 +320,6 @@ ADAManagement/
 │   │   │   ├── RegisterUser.jsx
 │   │   │   ├── StudentProfile.jsx    # histórico individual
 │   │   │   ├── StudentActions.jsx
-│   │   │   ├── StudyPlan.jsx
 │   │   │   ├── Disciplines.jsx
 │   │   │   └── Reports/
 │   │   │       ├── AcademicReport.jsx
@@ -308,7 +328,7 @@ ADAManagement/
 │   │   │       └── IndicatorsReport.jsx
 │   │   ├── services/api.js           # instância Axios + interceptador do token
 │   │   ├── theme.js                  # tema MUI (claro/escuro)
-│   │   ├── App.jsx                   # provedores e rotas
+│   │   ├── App.jsx                   # provedores e rotas (por papel)
 │   │   └── main.jsx
 │   ├── .env                          # não versionado
 │   ├── index.html
@@ -339,6 +359,7 @@ semesters
 
 students
   id · registration (único) · name · entry_year · entry_period · quota_type
+  password (hash BCrypt; vazio até o autocadastro — login do aluno = matrícula)
   course_id → courses.id
 
 academic_records
@@ -361,7 +382,13 @@ study_plans
 
 study_plan_disciplines                      -- tabela associativa N:N
   study_plan_id · discipline_id
+
+plan_rounds                                 -- rodada de cadastro de planos
+  id · period1_semester_id → semesters.id · period2_semester_id → semesters.id
+  open (índice) · opened_by_user_id
 ```
+
+Cada um dos dois períodos-alvo de uma `plan_round` é um `semesters` (criado pelo código informado, se ainda não existir). O plano de um período é, portanto, um `study_plans (aluno, semestre)` — o modelo de plano é reaproveitado; a rodada só define a janela e os dois semestres. Quando os dados reais desses períodos forem importados depois, casam pelo mesmo código, sem duplicação.
 
 **Campos de `academic_records`**
 
@@ -431,42 +458,49 @@ O índice único `idx_student_semester` garante, no próprio banco, que não exi
 | RN06 | Semestres, cursos e alunos inexistentes são criados automaticamente durante a importação. | `import_service.go` |
 | RN07 | Senhas armazenadas exclusivamente como hash BCrypt, no cadastro e na atualização. | `auth_service.go`, `user_service.go` |
 | RN08 | Token JWT válido por 24 horas; expirado, exige novo login. | `auth_service.go`, `auth_middleware.go` |
-| RN09 | Plano de integralização só pode ser criado para registro com status `PAE` ou `PIC`. | `study_plan_service.go` (HTTP 403) |
+| RN09 | Plano de integralização só é criado/editado se o **enquadramento mais recente** do aluno for `PAE` ou `PIC` (os períodos-alvo são futuros; a elegibilidade não vem do registro do semestre-alvo). | `study_plan_service.go` (`ensureEligible` + `latestStatus`, HTTP 403) |
 | RN10 | No máximo um plano de integralização por aluno e semestre; a segunda tentativa de criação retorna conflito e direciona para a atualização. | `study_plan_service.go` — violação do índice único traduzida para HTTP 409 |
 | RN11 | A atualização do plano **substitui integralmente** a lista de disciplinas associadas. | `study_plan_service.go` |
 | RN12 | Descrição da ação de acompanhamento limitada a 500 caracteres. | `action_service.go` e `StudentActions.jsx` |
 | RN13 | Código de disciplina é único. | `discipline_service.go` — violação do índice único traduzida para HTTP 409 |
 | RN14 | Ações de acompanhamento e planos de integralização são sempre vinculados a um semestre letivo. | Modelos e services correspondentes |
 | RN15 | Rotas administrativas (importação, cadastro/listagem/exclusão de usuários) exigem papel `admin`, verificado no servidor. | `middlewares/require_role.go` |
+| RN16 | Autocadastro do aluno só é aceito para matrícula **já existente** na base e **ainda sem senha**; senha ≥ 6 caracteres. | `student_auth_service.go` (HTTP 404/409/400) |
+| RN17 | Plano só pode ser registrado/editado com uma **rodada aberta** e para um dos **dois períodos-alvo** dela. | `study_plan_service.go` (`ensureEligible`, HTTP 403/400) |
+| RN18 | A elegibilidade PAE/PIC do plano usa o **enquadramento mais recente** do aluno (maior código de semestre). | `services/student_service.go` (`latestStatus`) |
+| RN19 | No máximo **uma rodada de cadastro aberta** por vez — abrir uma nova fecha a anterior, em transação. | `plan_round_service.go` |
+| RN20 | O aluno (`role="student"`) só acessa os **próprios dados**: a matrícula da rota tem de ser a do token. | `middlewares/require_role.go` (`RequireSelfOrStaff`, HTTP 403) |
 
 ---
 
 ## Rotas da interface
 
-| Rota | Tela |
-|---|---|
-| `/` | Login |
-| `/home` | Painel de módulos |
-| `/profile` | Meu perfil |
-| `/import` | Importação de dados (módulo exibido para `admin`) |
-| `/users` | Gestão de usuários (módulo exibido para `admin`) |
-| `/register-user` | Cadastro de novo usuário (módulo exibido para `admin`) |
-| `/report/records` · `/reports/records` | Relatório acadêmico |
-| `/report/students` | Alunos ativos |
-| `/report/courses` | Cursos cadastrados |
-| `/reports/indicators` | Painel de indicadores |
-| `/students/:registration` | Histórico individual do aluno |
-| `/students/:registration/actions` | Ações de acompanhamento |
-| `/students/:registration/plan` | Plano de integralização curricular |
-| `/disciplines` | Disciplinas |
+| Rota | Tela | Acesso |
+|---|---|---|
+| `/` | Login da coordenação | público |
+| `/aluno/login` · `/aluno/cadastro` | Login e autocadastro do aluno | público |
+| `/aluno` | Área do aluno: enquadramento + plano dos 2 períodos | `student` |
+| `/home` | Painel de módulos | staff |
+| `/profile` | Meu perfil | staff |
+| `/import` | Importação de dados (módulo exibido para `admin`) | staff |
+| `/users` · `/register-user` | Gestão e cadastro de usuários (exibidos para `admin`) | staff |
+| `/report/records` · `/reports/records` | Relatório acadêmico | staff |
+| `/report/students` | Alunos ativos | staff |
+| `/report/courses` | Cursos cadastrados | staff |
+| `/reports/indicators` | Painel de indicadores | staff |
+| `/students/:registration` | Histórico individual do aluno | staff |
+| `/students/:registration/actions` | Ações de acompanhamento | staff |
+| `/planos` | Rodada de cadastro + alunos em PAE/PIC | staff |
+| `/planos/:registration` | Plano de integralização de um aluno (coordenação) | staff |
+| `/disciplines` | Disciplinas | staff |
 
-Todas as rotas, exceto `/`, exigem sessão ativa (`PrivateRoute`).
+Todas as rotas, exceto as públicas, exigem sessão ativa; o `PrivateRoute` também restringe por papel — um aluno que tente uma rota de staff é enviado para `/aluno`, e vice-versa. (staff = `admin` ou `user`.)
 
 ---
 
 ## API REST
 
-Base: `<BACKEND_URL>/api/v1` — o prefixo `/api`, sem versão, permanece como alias de compatibilidade. Com exceção de `POST /login`, todas as rotas exigem o cabeçalho `Authorization: Bearer <token>`; as marcadas como **Admin** passam também pelo middleware `RequireRole("admin")`.
+Base: `<BACKEND_URL>/api/v1` — o prefixo `/api`, sem versão, permanece como alias de compatibilidade. Com exceção das rotas públicas, todas exigem `Authorization: Bearer <token>`. A coluna **Acesso** indica o middleware aplicado: **Autenticado** (qualquer token), **Self ou Staff** (o próprio aluno ou a coordenação), **Staff** (`admin` ou `user`) e **Admin**.
 
 Fora da API, `GET /health` (sem autenticação) responde ao *health check* da plataforma de hospedagem, verificando também a conectividade com o banco.
 
@@ -474,8 +508,10 @@ Fora da API, `GET /health` (sem autenticação) responde ao *health check* da pl
 
 | Método | Rota | Acesso | Parâmetros | Descrição |
 |---|---|---|---|---|
-| `POST` | `/login` | Público | corpo: `email`, `password` | Retorna o token JWT e os dados do usuário |
-| `GET` | `/me` | Autenticado | — | Dados do usuário do token |
+| `POST` | `/login` | Público | corpo: `email`, `password` | Login da coordenação — token JWT + dados do usuário |
+| `POST` | `/student/register` | Público | corpo: `registration`, `password` | Autocadastro do aluno (matrícula existente e sem senha; senha ≥ 6) |
+| `POST` | `/student/login` | Público | corpo: `registration`, `password` | Login do aluno — token JWT `role="student"` |
+| `GET` | `/me` | Autenticado | — | Ramifica por papel: dados do usuário (staff) ou do aluno + enquadramento |
 | `POST` | `/register` | **Admin** | corpo: `name`, `email`, `password`, `role?` | Cria usuário (`role` padrão `user`; e-mail validado; senha ≥ 6 caracteres) |
 | `GET` | `/users` | **Admin** | `name`, `email`, `role` | Lista usuários (sem o hash da senha) |
 | `PUT` | `/users/:id` | Autenticado | corpo: `name?`, `email?`, `password?`, `role?` | Usuário comum edita apenas o próprio perfil; só `admin` altera `role` |
@@ -486,38 +522,47 @@ Fora da API, `GET /health` (sem autenticação) responde ao *health check* da pl
 | Método | Rota | Acesso | Parâmetros | Descrição |
 |---|---|---|---|---|
 | `POST` | `/upload` | **Admin** | `multipart/form-data`, campo `file` | Importa planilha CSV/XLSX; retorna `summary` com o resultado |
-| `GET` | `/semesters` | Autenticado | — | Semestres em ordem decrescente de código |
-| `GET` | `/reports/courses` | Autenticado | `code`, `name` | Cursos cadastrados |
+| `GET` | `/semesters` | **Staff** | — | Semestres em ordem decrescente de código |
+| `GET` | `/reports/courses` | **Staff** | `code`, `name` | Cursos cadastrados |
 
 ### Relatórios e indicadores
 
 | Método | Rota | Acesso | Parâmetros | Descrição |
 |---|---|---|---|---|
-| `GET` | `/reports/records` | Autenticado | `semester_id`, `mode=critical`, `max_pending`, `registration`, `student_name`, `course_name`, `status`, `limit`, `offset` | Relatório acadêmico com aluno, curso e semestre aninhados |
-| `GET` | `/reports/students` | Autenticado | `semester_id`, `registration`, `name`, `entry_year`, `quota_type`, `limit`, `offset` | Alunos (com `semester_id`, apenas os que têm registro no semestre) |
-| `GET` | `/reports/dashboard` | Autenticado | `semester_id` **(obrigatório)** | Distribuição por status, alunos críticos e próximos da formatura |
-| `GET` | `/students/:registration/history` | Autenticado | — | `{ student, history }` — histórico ordenado por semestre |
+| `GET` | `/reports/records` | **Staff** | `semester_id`, `mode=critical`, `max_pending`, `registration`, `student_name`, `course_name`, `status`, `limit`, `offset` | Relatório acadêmico com aluno, curso e semestre aninhados |
+| `GET` | `/reports/students` | **Staff** | `semester_id`, `registration`, `name`, `entry_year`, `quota_type`, `limit`, `offset` | Alunos (com `semester_id`, apenas os que têm registro no semestre) |
+| `GET` | `/reports/dashboard` | **Staff** | `semester_id` **(obrigatório)** | Distribuição por status, alunos críticos e próximos da formatura |
+| `GET` | `/students/:registration/history` | **Self ou Staff** | — | `{ student, history }` — histórico ordenado por semestre |
 
 ### Acompanhamento discente
 
 | Método | Rota | Acesso | Parâmetros | Descrição |
 |---|---|---|---|---|
-| `GET` | `/students/:registration/actions` | Autenticado | `semester_id` **(obrigatório)** | Ações do aluno no semestre, mais recentes primeiro |
-| `POST` | `/students/:registration/actions` | Autenticado | corpo: `semester_id`, `action_date`, `description`, `response_date?` | Registra ação (403 se o aluno estiver em regularidade) |
-| `PUT` | `/actions/:id` | Autenticado | corpo: `action_date?`, `description?`, `response_date?` | Atualiza ação |
-| `DELETE` | `/actions/:id` | Autenticado | — | Remove ação |
+| `GET` | `/students/:registration/actions` | **Staff** | `semester_id` **(obrigatório)** | Ações do aluno no semestre, mais recentes primeiro |
+| `POST` | `/students/:registration/actions` | **Staff** | corpo: `semester_id`, `action_date`, `description`, `response_date?` | Registra ação (403 se o aluno estiver em regularidade) |
+| `PUT` | `/actions/:id` | **Staff** | corpo: `action_date?`, `description?`, `response_date?` | Atualiza ação |
+| `DELETE` | `/actions/:id` | **Staff** | — | Remove ação |
 
-### Disciplinas e plano de integralização
+### Disciplinas
 
 | Método | Rota | Acesso | Parâmetros | Descrição |
 |---|---|---|---|---|
-| `GET` | `/disciplines` | Autenticado | — | Disciplinas em ordem alfabética |
-| `POST` | `/disciplines` | Autenticado | corpo: `code`, `name` | Cria disciplina (409 se o código já existir) |
-| `PUT` | `/disciplines/:id` | Autenticado | corpo: `code?`, `name?` | Atualiza disciplina |
-| `DELETE` | `/disciplines/:id` | Autenticado | — | Remove disciplina |
-| `GET` | `/students/:registration/plan` | Autenticado | `semester_id` **(obrigatório)** | Plano do aluno no semestre (404 se não existir) |
-| `POST` | `/students/:registration/plan` | Autenticado | corpo: `semester_id`, `discipline_ids[]` | Cria plano (403 fora de PAE/PIC, 409 se já existir) |
-| `PUT` | `/students/:registration/plan` | Autenticado | corpo: `semester_id`, `discipline_ids[]` | Substitui as disciplinas do plano |
+| `GET` | `/disciplines` | Autenticado | — | Disciplinas em ordem alfabética (aluno lê para montar o plano) |
+| `POST` | `/disciplines` | **Staff** | corpo: `code`, `name` | Cria disciplina (409 se o código já existir) |
+| `PUT` | `/disciplines/:id` | **Staff** | corpo: `code?`, `name?` | Atualiza disciplina |
+| `DELETE` | `/disciplines/:id` | **Staff** | — | Remove disciplina |
+
+### Rodada de cadastro e plano de integralização
+
+| Método | Rota | Acesso | Parâmetros | Descrição |
+|---|---|---|---|---|
+| `GET` | `/rounds/current` | Autenticado | — | Rodada aberta (os 2 períodos-alvo); 404 se nenhuma |
+| `GET` | `/rounds` | **Staff** | — | Histórico de rodadas |
+| `POST` | `/rounds` | **Staff** | corpo: `period1`, `period2` | Abre rodada (fecha a anterior; períodos distintos) |
+| `PUT` | `/rounds/:id/close` | **Staff** | — | Encerra a rodada |
+| `GET` | `/students/:registration/plan` | **Self ou Staff** | `semester_id` **(obrigatório)** | Plano do aluno no semestre (404 se não existir) |
+| `POST` | `/students/:registration/plan` | **Self ou Staff** | corpo: `semester_id`, `discipline_ids[]` | Cria plano (403 sem rodada aberta ou fora de PAE/PIC; 400 se o semestre não for da rodada; 409 se já existir) |
+| `PUT` | `/students/:registration/plan` | **Self ou Staff** | corpo: `semester_id`, `discipline_ids[]` | Substitui as disciplinas do plano (mesmas validações) |
 
 > Paginação: em `/reports/records` e `/reports/students`, `limit`/`offset` são opcionais — sem `limit`, a listagem completa é retornada (comportamento esperado pelas telas atuais); com `limit`, o total de linhas vem no cabeçalho `X-Total-Count`. As respostas usam DTOs: campos internos como `deleted_at` não são expostos.
 
@@ -606,7 +651,11 @@ Todos os componentes são hospedados no Render, com implantação automática a 
 
 ## Testes e CI
 
-- `cd backend && go test ./...` executa os testes unitários: mapeamento de colunas da importação (`parseRows` — incluindo cabeçalho com caixa/espaços diferentes e o descarte de linhas inválidas) e tradução de erros de domínio para HTTP (`respondError` — incluindo a garantia de que respostas 500 não vazam detalhes internos).
+- `cd backend && go test ./...` executa os testes unitários e de integração:
+  - **parse da importação** (`parseRows` — cabeçalho com caixa/espaços diferentes, descarte de linhas inválidas);
+  - **tradução de erros** de domínio para HTTP (`respondError`, sem vazar detalhes internos em 500);
+  - **elegibilidade do plano e rodada** (`study_plan_service_test.go` — exige rodada aberta, semestre-alvo e enquadramento mais recente PAE/PIC; só uma rodada aberta) e **auth do aluno** (`student_auth_service_test.go` — matrícula inexistente, duplo cadastro, login e claims), sobre um **SQLite in-memory** (driver puro-Go, sem CGO);
+  - **ownership** (`RequireSelfOrStaff` — aluno em matrícula alheia recebe 403; staff passa).
 - O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda a cada push e pull request: `gofmt`, `go vet`, testes e build do backend, além do build de produção do frontend.
 
 ---
@@ -618,8 +667,9 @@ Registradas aqui por transparência; parte delas já aparece na monografia como 
 1. **Progresso da importação.** A barra mede de fato apenas o envio do arquivo; o processamento no servidor é síncrono e a etapa intermediária é uma estimativa animada. Ao final, porém, o resumo real (novos, atualizados, ignorados) é retornado e exibido.
 2. **Filtro inicial em Alunos Ativos.** O campo de ano de ingresso vem preenchido com o ano corrente e é aplicado na primeira consulta — para ver todos os alunos, é preciso limpar o campo e buscar novamente.
 3. **Paginação apenas na API.** `GET /reports/records` e `GET /reports/students` aceitam `limit`/`offset` e devolvem `X-Total-Count`, mas as telas ainda carregam a lista completa.
-4. **Cobertura de testes parcial.** Há testes unitários do parse da importação e da tradução de erros, executados no CI; as regras que dependem do banco (services) ainda não têm testes de integração.
-5. **LGPD.** Foram adotadas minimização de dados (matrícula como identificador), armazenamento irreversível de senhas e acesso restrito a usuários autenticados. Políticas formais de retenção e de tratamento continuam pendentes.
+4. **Identidade fraca no autocadastro do aluno.** Como não há e-mail nem outro dado sigiloso na planilha, o autocadastro exige apenas a matrícula (semipública) para definir a senha do primeiro acesso — decisão consciente, dado o baixo risco da informação. Não há recuperação de senha (sem canal de e-mail); um reset dependeria de provisionamento pela coordenação. Uma identidade forte exigiria integração com a autenticação institucional (fora de escopo).
+5. **Cobertura de testes.** O backend tem testes de unidade e de integração (via SQLite in-memory) das regras críticas — importação, erros, elegibilidade do plano/rodada, auth do aluno e ownership. O frontend ainda não tem testes automatizados além do build de produção no CI.
+6. **LGPD.** Foram adotadas minimização de dados (matrícula como identificador), armazenamento irreversível de senhas (staff e aluno) e acesso restrito por papel. Políticas formais de retenção e de tratamento continuam pendentes.
 
 ---
 

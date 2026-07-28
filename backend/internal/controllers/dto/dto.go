@@ -216,3 +216,54 @@ func NewStudyPlan(m models.StudyPlan) StudyPlan {
 	}
 	return p
 }
+
+// StudentMe é o "quem sou eu" do aluno autenticado: identidade + curso +
+// enquadramento mais recente. Carrega role="student" para o frontend
+// rotear por papel como faz com o staff.
+type StudentMe struct {
+	ID           uint    `json:"ID"`
+	Registration string  `json:"registration"`
+	Name         string  `json:"name"`
+	Role         string  `json:"role"`
+	Status       string  `json:"status"`
+	Course       *Course `json:"course,omitempty"`
+}
+
+func NewStudentMe(m models.Student, status string) StudentMe {
+	me := StudentMe{
+		ID:           m.ID,
+		Registration: m.Registration,
+		Name:         m.Name,
+		Role:         models.RoleStudent,
+		Status:       status,
+	}
+	if m.Course.ID != 0 {
+		course := NewCourse(m.Course)
+		me.Course = &course
+	}
+	return me
+}
+
+type PlanRound struct {
+	ID      uint     `json:"ID"`
+	Open    bool     `json:"open"`
+	Period1 Semester `json:"period1"`
+	Period2 Semester `json:"period2"`
+}
+
+func NewPlanRound(m models.PlanRound) PlanRound {
+	return PlanRound{
+		ID:      m.ID,
+		Open:    m.Open,
+		Period1: NewSemester(m.Period1),
+		Period2: NewSemester(m.Period2),
+	}
+}
+
+func NewPlanRounds(ms []models.PlanRound) []PlanRound {
+	out := make([]PlanRound, len(ms))
+	for i, m := range ms {
+		out[i] = NewPlanRound(m)
+	}
+	return out
+}

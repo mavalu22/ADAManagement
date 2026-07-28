@@ -7,9 +7,10 @@ import {
   Typography,
   Paper,
   Alert,
+  Link as MuiLink,
 } from '@mui/material';
 import { AuthContext } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -106,6 +107,11 @@ const Login = () => {
               Entrar
             </Button>
           </Box>
+
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            É aluno em PAE/PIC?{' '}
+            <MuiLink component={RouterLink} to="/aluno/login">Acesse aqui</MuiLink>
+          </Typography>
         </Paper>
       </Container>
     </Box>

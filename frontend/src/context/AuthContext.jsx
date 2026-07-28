@@ -38,6 +38,17 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
   };
 
+  // Login do aluno: identidade é a matrícula (role="student").
+  const loginStudent = async (registration, password) => {
+    const response = await api.post('/student/login', { registration, password });
+
+    const { token, user: userData } = response.data;
+
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(userData));
+    setUser(userData);
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -45,7 +56,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ authenticated: !!user, user, login, logout, loading }}>
+    <AuthContext.Provider value={{ authenticated: !!user, user, login, loginStudent, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
