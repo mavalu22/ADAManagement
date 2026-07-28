@@ -108,7 +108,7 @@ func TestPlanRoundOnlyOneOpen(t *testing.T) {
 	seedStudentWithStatus(t, db, "2022001", "2025/2", models.StatusPAE)
 
 	openRoundFor(t, rounds, "2026/1", "2026/2")
-	openRoundFor(t, rounds, "2026/2", "2027/1")
+	openRoundFor(t, rounds, "2027/1", "2027/2") // períodos distintos (sobreposição é barrada)
 
 	var openCount int64
 	db.Model(&models.PlanRound{}).Where("open = ?", true).Count(&openCount)

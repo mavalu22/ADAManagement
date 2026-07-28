@@ -116,7 +116,8 @@ O registro do plano foi reformulado para dar autonomia ao aluno. Em vez de um bo
 - Os **alunos em PAE/PIC** entram na sua área e montam, **para cada um dos dois períodos**, as disciplinas que pretendem cursar (escolhidas do catálogo).
 - Elegibilidade: como os períodos-alvo são **futuros** (ainda não importados), a permissão vem do enquadramento do aluno **no semestre-base da rodada** ser PAE ou PIC.
 - O plano de cada período é único por aluno e semestre; salvar de novo **atualiza** (substitui integralmente as disciplinas daquele período).
-- **Rodada encerrada é somente leitura** (aluno e coordenação); para editar de novo, a coordenação **reabre** a rodada (reabrir fecha a que estiver aberta, mantendo uma só).
+- **Rodada encerrada é somente leitura** (aluno e coordenação); para editar de novo, a coordenação **reabre** a rodada (reabrir fecha a que estiver aberta, mantendo uma só). A coordenação pode **apagar** uma rodada (removendo os planos registrados nela).
+- Cada **período-alvo é exclusivo** de uma rodada: não se abre outra rodada usando um período já planejado.
 - A **coordenação também registra/edita** o plano de qualquer aluno da rodada aberta (fallback), pela página de Planos de Integralização.
 
 ### Área do aluno (autoatendimento)
@@ -476,6 +477,8 @@ O índice único `idx_student_semester` garante, no próprio banco, que não exi
 | RN20 | O aluno (`role="student"`) só acessa os **próprios dados**: a matrícula da rota tem de ser a do token. | `middlewares/require_role.go` (`RequireSelfOrStaff`, HTTP 403) |
 | RN21 | O **semestre-base** da rodada é o último semestre com registros acadêmicos no momento da abertura, gravado como snapshot; abrir sem dados importados é bloqueado. | `plan_round_service.go` (`latestDataSemester`, HTTP 400) |
 | RN22 | Rodada **encerrada é somente leitura**; editar exige **reabrir** a rodada. O grupo de alunos de uma rodada são os PAE/PIC do seu semestre-base. | `plan_round_service.go` (`Reopen`, `Cohort`) + `ensureEligible` |
+| RN23 | Um **período-alvo é exclusivo** de uma rodada: não se pode abrir uma rodada cujo período já pertença a outra rodada existente. | `plan_round_service.go` (`Open`, HTTP 400) |
+| RN24 | **Apagar** uma rodada (qualquer estado) remove também os **planos registrados** nos seus dois períodos, liberando-os para reuso. | `plan_round_service.go` (`Delete`, transação/hard delete) |
 
 ---
 
@@ -565,9 +568,10 @@ Fora da API, `GET /health` (sem autenticação) responde ao *health check* da pl
 |---|---|---|---|---|
 | `GET` | `/rounds/current` | Autenticado | — | Rodada aberta (base + 2 períodos); 404 se nenhuma |
 | `GET` | `/rounds` | **Staff** | — | Lista de rodadas (base, períodos, aberta/encerrada) |
-| `POST` | `/rounds` | **Staff** | corpo: `period1`, `period2` | Abre rodada; base = último semestre com dados (400 sem dados); fecha a anterior; períodos distintos |
+| `POST` | `/rounds` | **Staff** | corpo: `period1`, `period2` | Abre rodada; base = último semestre com dados (400 sem dados); períodos distintos e **não usados por outra rodada** (400); fecha a anterior |
 | `PUT` | `/rounds/:id/close` | **Staff** | — | Encerra a rodada (fica somente leitura) |
 | `PUT` | `/rounds/:id/reopen` | **Staff** | — | Reabre a rodada (fecha a que estiver aberta) |
+| `DELETE` | `/rounds/:id` | **Staff** | — | Apaga a rodada (qualquer estado) e os planos dos seus períodos |
 | `GET` | `/rounds/students` | **Staff** | `round_id` **(obrigatório)** | `{ round, students }` — alunos PAE/PIC do semestre-base da rodada |
 | `GET` | `/students/:registration/rounds` | **Self ou Staff** | — | Rodadas do aluno (onde esteve em PAE/PIC no semestre-base) + disciplinas por período |
 | `GET` | `/students/:registration/plan` | **Self ou Staff** | `semester_id` **(obrigatório)** | Plano do aluno no semestre (404 se não existir) |

@@ -8,6 +8,7 @@ import LockOpenIcon from '@mui/icons-material/LockOpen';
 import LockIcon from '@mui/icons-material/Lock';
 import LoginIcon from '@mui/icons-material/Login';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
@@ -72,6 +73,17 @@ const PlanRounds = () => {
       fetchRounds();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Erro ao reabrir a rodada.');
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Apagar esta rodada? Os planos registrados nela serão removidos.')) return;
+    try {
+      await api.delete(`/rounds/${id}`);
+      toast.success('Rodada apagada.');
+      fetchRounds();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Erro ao apagar a rodada.');
     }
   };
 
@@ -171,6 +183,11 @@ const PlanRounds = () => {
                           </IconButton>
                         </Tooltip>
                       )}
+                      <Tooltip title="Apagar rodada">
+                        <IconButton color="error" onClick={() => handleDelete(r.ID)}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
                     </TableCell>
                   </TableRow>
                 ))}
