@@ -5,15 +5,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"adamanagement/backend/internal/controllers/dto"
 	"adamanagement/backend/internal/middlewares"
+	"adamanagement/backend/internal/models"
 	"adamanagement/backend/internal/services"
 )
 
 type AuthHandler struct {
-	svc *services.AuthService
+	svc        *services.AuthService
+	studentSvc *services.StudentAuthService
 }
 
-func NewAuthHandler(svc *services.AuthService) *AuthHandler { return &AuthHandler{svc: svc} }
+func NewAuthHandler(svc *services.AuthService, studentSvc *services.StudentAuthService) *AuthHandler {
+	return &AuthHandler{svc: svc, studentSvc: studentSvc}
+}
 
 type loginInput struct {
 	Email    string `json:"email" binding:"required"`
@@ -50,7 +55,24 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	})
 }
 
+// Me ramifica por papel: token de aluno devolve a identidade do aluno +
+// enquadramento; token de staff devolve o usuário.
 func (h *AuthHandler) Me(c *gin.Context) {
+	if middlewares.Role(c) == models.RoleStudent {
+		studentID, ok := middlewares.StudentID(c)
+		if !ok {
+			respondError(c, services.Unauthorized("sessão inválida"))
+			return
+		}
+		student, status, err := h.studentSvc.Me(studentID)
+		if err != nil {
+			respondError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, dto.NewStudentMe(*student, status))
+		return
+	}
+
 	id, ok := middlewares.UserID(c)
 	if !ok {
 		respondError(c, services.Unauthorized("sessão inválida"))

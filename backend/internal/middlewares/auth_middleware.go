@@ -11,8 +11,10 @@ import (
 )
 
 const (
-	ctxUserID = "userID"
-	ctxRole   = "role"
+	ctxUserID       = "userID"
+	ctxStudentID    = "studentID"
+	ctxRegistration = "registration"
+	ctxRole         = "role"
 )
 
 // Auth valida o token JWT (somente HS256) e publica a identidade do
@@ -43,12 +45,14 @@ func Auth(jwtSecret string) gin.HandlerFunc {
 		}
 
 		c.Set(ctxUserID, claims.UserID)
+		c.Set(ctxStudentID, claims.StudentID)
+		c.Set(ctxRegistration, claims.Registration)
 		c.Set(ctxRole, claims.Role)
 		c.Next()
 	}
 }
 
-// UserID devolve o identificador do usuário autenticado.
+// UserID devolve o identificador do usuário (staff) autenticado.
 func UserID(c *gin.Context) (uint, bool) {
 	v, ok := c.Get(ctxUserID)
 	if !ok {
@@ -56,6 +60,21 @@ func UserID(c *gin.Context) (uint, bool) {
 	}
 	id, ok := v.(uint)
 	return id, ok
+}
+
+// StudentID devolve o identificador do aluno autenticado (role="student").
+func StudentID(c *gin.Context) (uint, bool) {
+	v, ok := c.Get(ctxStudentID)
+	if !ok {
+		return 0, false
+	}
+	id, ok := v.(uint)
+	return id, ok
+}
+
+// Registration devolve a matrícula do aluno autenticado.
+func Registration(c *gin.Context) string {
+	return c.GetString(ctxRegistration)
 }
 
 // Role devolve o papel do usuário autenticado.

@@ -16,10 +16,13 @@ const TokenTTL = 24 * time.Hour
 
 // Claims é o payload dos tokens emitidos pelo sistema. O middleware de
 // autenticação valida com este mesmo tipo, mantendo o contrato em um
-// único lugar.
+// único lugar. Tokens de staff carregam UserID; tokens de aluno
+// (role="student") carregam StudentID e Registration.
 type Claims struct {
-	UserID uint   `json:"user_id"`
-	Role   string `json:"role"`
+	UserID       uint   `json:"user_id,omitempty"`
+	StudentID    uint   `json:"student_id,omitempty"`
+	Registration string `json:"registration,omitempty"`
+	Role         string `json:"role"`
 	jwt.RegisteredClaims
 }
 

@@ -36,3 +36,23 @@ func (s *StudentService) History(registration string) (*models.Student, []models
 
 	return &student, records, nil
 }
+
+// latestStatus devolve o enquadramento do aluno no semestre mais recente
+// (maior código). Base da elegibilidade PAE/PIC quando o plano mira
+// períodos futuros ainda não importados (RN18). Retorna "" se o aluno não
+// tem registro acadêmico. Função de pacote, compartilhada entre services.
+func latestStatus(db *gorm.DB, studentID uint) (string, error) {
+	var record models.AcademicRecord
+	err := db.
+		Joins("JOIN semesters ON semesters.id = academic_records.semester_id").
+		Where("academic_records.student_id = ?", studentID).
+		Order("semesters.code desc").
+		First(&record).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", nil
+		}
+		return "", err
+	}
+	return record.Status, nil
+}

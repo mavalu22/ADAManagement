@@ -49,6 +49,7 @@ func Run() error {
 		&models.StudentAction{},
 		&models.Discipline{},
 		&models.StudyPlan{},
+		&models.PlanRound{},
 	); err != nil {
 		return fmt.Errorf("migração do banco: %w", err)
 	}
@@ -77,14 +78,18 @@ func Run() error {
 	}))
 
 	r.GET("/health", healthHandler(db))
-	routes.Register(r, buildHandlers(db, authSvc), cfg.JWTSecret)
+	routes.Register(r, buildHandlers(db, authSvc, cfg.JWTSecret), cfg.JWTSecret)
 
 	return serve(r, cfg.Port)
 }
 
-func buildHandlers(db *gorm.DB, authSvc *services.AuthService) routes.Handlers {
+func buildHandlers(db *gorm.DB, authSvc *services.AuthService, jwtSecret string) routes.Handlers {
+	studentAuthSvc := services.NewStudentAuthService(db, jwtSecret)
+	roundSvc := services.NewPlanRoundService(db)
+
 	return routes.Handlers{
-		Auth:        controllers.NewAuthHandler(authSvc),
+		Auth:        controllers.NewAuthHandler(authSvc, studentAuthSvc),
+		StudentAuth: controllers.NewStudentAuthHandler(studentAuthSvc),
 		Users:       controllers.NewUserHandler(services.NewUserService(db)),
 		Import:      controllers.NewImportHandler(services.NewImportService(db)),
 		Reports:     controllers.NewReportHandler(services.NewReportService(db)),
@@ -92,7 +97,8 @@ func buildHandlers(db *gorm.DB, authSvc *services.AuthService) routes.Handlers {
 		Students:    controllers.NewStudentHandler(services.NewStudentService(db)),
 		Actions:     controllers.NewActionHandler(services.NewActionService(db)),
 		Disciplines: controllers.NewDisciplineHandler(services.NewDisciplineService(db)),
-		Plans:       controllers.NewStudyPlanHandler(services.NewStudyPlanService(db)),
+		Plans:       controllers.NewStudyPlanHandler(services.NewStudyPlanService(db, roundSvc)),
+		Rounds:      controllers.NewPlanRoundHandler(roundSvc),
 	}
 }
 
