@@ -62,7 +62,7 @@ func TestReopenKeepsSingleOpen(t *testing.T) {
 	seedStudentWithStatus(t, db, "2022001", "2025/2", models.StatusPAE)
 
 	a := openRoundFor(t, rounds, "2026/1", "2026/2")
-	b := openRoundFor(t, rounds, "2026/2", "2027/1") // fecha A, B aberta
+	b := openRoundFor(t, rounds, "2027/1", "2027/2") // fecha A, B aberta (períodos distintos)
 
 	reopened, err := rounds.Reopen(a.ID)
 	if err != nil {
@@ -82,6 +82,55 @@ func TestReopenKeepsSingleOpen(t *testing.T) {
 	db.First(&bReloaded, b.ID)
 	if bReloaded.Open {
 		t.Errorf("B deveria ter fechado ao reabrir A")
+	}
+}
+
+func TestOpenRejectsOverlappingPeriods(t *testing.T) {
+	db := newTestDB(t)
+	rounds := NewPlanRoundService(db)
+	seedStudentWithStatus(t, db, "2022001", "2025/2", models.StatusPAE)
+
+	openRoundFor(t, rounds, "2026/1", "2026/2")
+
+	// 2026/2 já pertence à primeira rodada → deve barrar.
+	if _, err := rounds.Open("2026/2", "2027/1", 1); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("período sobreposto deve dar ErrInvalid; obtive %v", err)
+	}
+
+	// Períodos totalmente novos → deve permitir.
+	if _, err := rounds.Open("2027/1", "2027/2", 1); err != nil {
+		t.Fatalf("períodos novos devem permitir; obtive %v", err)
+	}
+}
+
+func TestDeleteRoundRemovesPlansAndFreesPeriods(t *testing.T) {
+	db := newTestDB(t)
+	rounds := NewPlanRoundService(db)
+	plans := NewStudyPlanService(db, rounds)
+	seedStudentWithStatus(t, db, "2022001", "2025/2", models.StatusPAE)
+
+	round := openRoundFor(t, rounds, "2026/1", "2026/2")
+	if _, err := plans.Create("2022001", round.Period1SemesterID, nil); err != nil {
+		t.Fatalf("criar plano: %v", err)
+	}
+
+	if err := rounds.Delete(round.ID); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+
+	// Rodada some.
+	if _, err := rounds.Get(round.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("rodada apagada deveria dar ErrNotFound; obtive %v", err)
+	}
+	// Planos do período apagados.
+	var planCount int64
+	db.Model(&models.StudyPlan{}).Where("semester_id = ?", round.Period1SemesterID).Count(&planCount)
+	if planCount != 0 {
+		t.Errorf("planos do período deveriam ser removidos; restaram %d", planCount)
+	}
+	// Período liberado: abrir nova rodada reutilizando 2026/1 deve funcionar.
+	if _, err := rounds.Open("2026/1", "2028/1", 1); err != nil {
+		t.Errorf("período liberado deveria permitir nova rodada; obtive %v", err)
 	}
 }
 

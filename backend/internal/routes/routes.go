@@ -80,6 +80,7 @@ func register(api *gin.RouterGroup, h Handlers, jwtSecret string) {
 			staff.POST("/rounds", h.Rounds.Open)
 			staff.PUT("/rounds/:id/close", h.Rounds.Close)
 			staff.PUT("/rounds/:id/reopen", h.Rounds.Reopen)
+			staff.DELETE("/rounds/:id", h.Rounds.Delete)
 		}
 
 		// Perfil próprio: staff edita seu usuário; regra completa no service.

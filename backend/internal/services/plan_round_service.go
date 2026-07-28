@@ -66,6 +66,19 @@ func (s *PlanRoundService) Open(period1Code, period2Code string, userID uint) (*
 			return err
 		}
 
+		// Um período não pode pertencer a duas rodadas (RN23): evita que o
+		// mesmo semestre futuro seja planejado em rodadas diferentes.
+		var overlap int64
+		if err := tx.Model(&models.PlanRound{}).
+			Where("period1_semester_id IN ? OR period2_semester_id IN ?",
+				[]uint{sem1.ID, sem2.ID}, []uint{sem1.ID, sem2.ID}).
+			Count(&overlap).Error; err != nil {
+			return err
+		}
+		if overlap > 0 {
+			return Invalid("um dos períodos informados já pertence a outra rodada")
+		}
+
 		if err := tx.Model(&models.PlanRound{}).Where("open = ?", true).
 			Update("open", false).Error; err != nil {
 			return err
@@ -121,6 +134,33 @@ func (s *PlanRoundService) Reopen(id uint) (*models.PlanRound, error) {
 		return nil, err
 	}
 	return s.load(id)
+}
+
+// Delete apaga a rodada (em qualquer estado) e os planos registrados nos
+// seus dois períodos, em transação. Hard delete para liberar os períodos
+// (RN23) e não deixar planos órfãos por semestre. Os semestres-placeholder
+// são mantidos — reaproveitados por código em importação futura.
+func (s *PlanRoundService) Delete(id uint) error {
+	var round models.PlanRound
+	if err := s.db.First(&round, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return NotFound("Rodada não encontrada")
+		}
+		return err
+	}
+
+	periods := []uint{round.Period1SemesterID, round.Period2SemesterID}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(
+			"DELETE FROM study_plan_disciplines WHERE study_plan_id IN (SELECT id FROM study_plans WHERE semester_id IN ?)",
+			periods).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("semester_id IN ?", periods).Delete(&models.StudyPlan{}).Error; err != nil {
+			return err
+		}
+		return tx.Unscoped().Delete(&round).Error
+	})
 }
 
 // Current devolve a rodada aberta (RN19: no máximo uma).

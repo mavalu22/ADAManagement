@@ -50,6 +50,18 @@ func (h *PlanRoundHandler) Close(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Rodada encerrada"})
 }
 
+func (h *PlanRoundHandler) Delete(c *gin.Context) {
+	id, ok := parseIDParam(c)
+	if !ok {
+		return
+	}
+	if err := h.svc.Delete(id); err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Rodada apagada"})
+}
+
 func (h *PlanRoundHandler) Reopen(c *gin.Context) {
 	id, ok := parseIDParam(c)
 	if !ok {
